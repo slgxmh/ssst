@@ -16,18 +16,18 @@ export default function LabelList(props: LabelListProps) {
 
   return (
     <Show when={props.labels().length > 0}>
-      <div class="shrink-0 bg-base-100 border-t border-base-300 p-4 max-h-48 overflow-auto">
-        <div class="text-sm font-semibold mb-2">
+      <div class="w-64 shrink-0 bg-base-100 border-r border-base-300 h-full overflow-y-auto">
+        <div class="p-3 text-sm font-semibold border-b border-base-300">
           已标注 {props.labels().length} 个点
         </div>
         <div class="overflow-x-auto">
           <table class="table table-zebra table-xs">
             <thead>
               <tr>
-                <th class="w-12">#</th>
-                <th class="w-32">坐标</th>
+                <th>#</th>
+                <th>坐标</th>
                 <th>标签</th>
-                <th class="w-24">操作</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -35,9 +35,7 @@ export default function LabelList(props: LabelListProps) {
                 {(l) => (
                   <tr>
                     <td>
-                      <span class="badge badge-primary badge-xs">
-                        {l.id}
-                      </span>
+                      <span class="badge badge-primary badge-xs">{l.id}</span>
                     </td>
                     <td class="font-mono text-xs">
                       {Math.round(l.x)}, {Math.round(l.y)}
