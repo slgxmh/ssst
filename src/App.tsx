@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { createSignal, type JSX } from "solid-js";
 import "./App.css";
 import ImageLabelerPage from "./features/image-labeler";
 

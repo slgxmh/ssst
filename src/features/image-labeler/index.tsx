@@ -2,7 +2,6 @@ import { useImageLabeler } from "./hooks/useImageLabeler";
 import Toolbar from "./components/Toolbar";
 import Viewport from "./components/Viewport";
 import LabelList from "./components/LabelList";
-import LabelModal from "./components/LabelModal";
 
 export default function ImageLabelerPage() {
   const {
@@ -10,19 +9,18 @@ export default function ImageLabelerPage() {
     imageRef, viewportRef,
     // state
     imagePath, imageUrl, labels, zoom, pan, naturalSize,
-    modalOpen, labelText, editingId, pendingX, pendingY,
+    categories, currentCategoryId,
     // actions
     pickImage, saveLabels, resetView, clearAll,
-    confirmLabel, deleteLabel, editLabel,
+    deleteLabel, editLabel,
     // viewport handlers
     handleWheel, handleViewportMouseDown, handleViewportMouseMove,
     handleViewportMouseUp, handleViewportClick,
     // label handlers
     startDrag, handleContextMenu,
     handleImageLoad,
-    // setters
-    setModalOpen,
-    setLabelText,
+    // category actions
+    addCategory, removeCategory, editCategory, setCurrentCategoryId,
   } = useImageLabeler();
 
   return (
@@ -34,6 +32,12 @@ export default function ImageLabelerPage() {
         saveLabels={saveLabels}
         resetView={resetView}
         clearAll={clearAll}
+        categories={categories}
+        currentCategoryId={currentCategoryId}
+        setCurrentCategoryId={setCurrentCategoryId}
+        addCategory={addCategory}
+        removeCategory={removeCategory}
+        editCategory={editCategory}
       />
       <Viewport
         imageUrl={imageUrl}
@@ -41,6 +45,7 @@ export default function ImageLabelerPage() {
         zoom={zoom}
         pan={pan}
         labels={labels}
+        categories={categories}
         imageRef={imageRef}
         viewportRef={viewportRef}
         handleWheel={handleWheel}
@@ -54,18 +59,9 @@ export default function ImageLabelerPage() {
       />
       <LabelList
         labels={labels}
+        categories={categories}
         editLabel={editLabel}
         deleteLabel={deleteLabel}
-      />
-      <LabelModal
-        modalOpen={modalOpen}
-        pendingX={pendingX}
-        pendingY={pendingY}
-        labelText={labelText}
-        editingId={editingId}
-        confirmLabel={confirmLabel}
-        setModalOpen={setModalOpen}
-        setLabelText={setLabelText}
       />
     </div>
   );

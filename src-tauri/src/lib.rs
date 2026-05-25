@@ -1,16 +1,36 @@
-use csv::Writer;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Label {
+pub struct Category {
     pub id: u32,
-    pub x: f64,
-    pub y: f64,
-    pub text: String,
+    pub name: String,
+    pub color: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Shape {
+    pub label: String,
+    pub points: Vec<Vec<f64>>,
+    pub group_id: Option<u32>,
+    pub shape_type: String,
+    pub flags: HashMap<String, bool>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct LabelMeAnnotation {
+    pub version: String,
+    pub flags: HashMap<String, bool>,
+    pub shapes: Vec<Shape>,
+    #[serde(rename = "imagePath")]
+    pub image_path: String,
+    #[serde(rename = "imageHeight")]
+    pub image_height: u32,
+    #[serde(rename = "imageWidth")]
+    pub image_width: u32,
+    pub categories: Vec<Category>,
 }
 
 #[tauri::command]
@@ -36,7 +56,7 @@ fn read_image(image_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn save_labels(image_path: String, labels: Vec<Label>) -> Result<(), String> {
+fn save_labels(image_path: String, annotation: LabelMeAnnotation) -> Result<(), String> {
     let base = Path::new(&image_path)
         .file_stem()
         .ok_or("无效的文件路径")?
@@ -46,31 +66,14 @@ fn save_labels(image_path: String, labels: Vec<Label>) -> Result<(), String> {
         .parent()
         .ok_or("无法获取父目录")?;
 
-    let csv_path = parent.join(format!("{}.csv", base));
-
-    let mut writer = Writer::from_path(&csv_path).map_err(|e| e.to_string())?;
-
-    writer
-        .write_record(&["id", "x", "y", "label"])
-        .map_err(|e| e.to_string())?;
-
-    for label in &labels {
-        writer
-            .write_record(&[
-                label.id.to_string(),
-                label.x.to_string(),
-                label.y.to_string(),
-                label.text.clone(),
-            ])
-            .map_err(|e| e.to_string())?;
-    }
-
-    writer.flush().map_err(|e| e.to_string())?;
+    let json_path = parent.join(format!("{}.json", base));
+    let json_str = serde_json::to_string_pretty(&annotation).map_err(|e| e.to_string())?;
+    fs::write(&json_path, json_str).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-fn load_labels(image_path: String) -> Result<Vec<Label>, String> {
+fn load_labels(image_path: String) -> Result<LabelMeAnnotation, String> {
     let base = Path::new(&image_path)
         .file_stem()
         .ok_or("无效的文件路径")?
@@ -80,33 +83,29 @@ fn load_labels(image_path: String) -> Result<Vec<Label>, String> {
         .parent()
         .ok_or("无法获取父目录")?;
 
-    let csv_path = parent.join(format!("{}.csv", base));
+    let json_path = parent.join(format!("{}.json", base));
 
-    if !csv_path.exists() {
-        return Ok(vec![]);
+    if !json_path.exists() {
+        let image_name = Path::new(&image_path)
+            .file_name()
+            .ok_or("无效的文件路径")?
+            .to_string_lossy()
+            .to_string();
+        
+        return Ok(LabelMeAnnotation {
+            version: "5.0".to_string(),
+            flags: HashMap::new(),
+            shapes: Vec::new(),
+            image_path: image_name,
+            image_height: 0,
+            image_width: 0,
+            categories: Vec::new(),
+        });
     }
 
-    let file = File::open(&csv_path).map_err(|e| e.to_string())?;
-    let reader = BufReader::new(file);
-    let mut labels = Vec::new();
-
-    for (i, line) in reader.lines().enumerate() {
-        if i == 0 {
-            continue; // skip header
-        }
-        let line = line.map_err(|e| e.to_string())?;
-        let parts: Vec<&str> = line.split(',').collect();
-        if parts.len() >= 4 {
-            labels.push(Label {
-                id: parts[0].parse().unwrap_or(i as u32),
-                x: parts[1].parse().unwrap_or(0.0),
-                y: parts[2].parse().unwrap_or(0.0),
-                text: parts[3..].join(","),
-            });
-        }
-    }
-
-    Ok(labels)
+    let json_str = fs::read_to_string(&json_path).map_err(|e| e.to_string())?;
+    let annotation: LabelMeAnnotation = serde_json::from_str(&json_str).map_err(|e| e.to_string())?;
+    Ok(annotation)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

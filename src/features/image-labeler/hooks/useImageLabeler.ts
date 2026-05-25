@@ -1,19 +1,17 @@
 import { createSignal } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Label, Vec2 } from "../types";
+import type { Label, Vec2, Category, LabelMeAnnotation } from "../types";
 
 export function useImageLabeler() {
   let nextId = 1;
+  let nextCategoryId = 1;
 
   const [imagePath, setImagePath] = createSignal("");
   const [imageUrl, setImageUrl] = createSignal("");
   const [labels, setLabels] = createSignal<Label[]>([]);
-  const [modalOpen, setModalOpen] = createSignal(false);
-  const [pendingX, setPendingX] = createSignal(0);
-  const [pendingY, setPendingY] = createSignal(0);
-  const [labelText, setLabelText] = createSignal("");
-  const [editingId, setEditingId] = createSignal<number | null>(null);
+  const [categories, setCategories] = createSignal<Category[]>([]);
+  const [currentCategoryId, setCurrentCategoryId] = createSignal<number | null>(null);
   const [dragId, setDragId] = createSignal<number | null>(null);
 
   // Zoom & pan
@@ -36,6 +34,35 @@ export function useImageLabeler() {
     viewportRefEl = el;
   };
 
+  // Category management
+  function addCategory(name: string) {
+    const color = `hsl(${Math.random() * 360}, 70%, 50%)`;
+    const newCat: Category = { id: nextCategoryId++, name, color };
+    setCategories((prev) => [...prev, newCat]);
+    if (currentCategoryId() === null) {
+      setCurrentCategoryId(newCat.id);
+    }
+  }
+
+  function removeCategory(id: number) {
+    const used = labels().some((l) => l.labelId === id);
+    if (used) {
+      alert("该标签已被使用，无法删除");
+      return;
+    }
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    if (currentCategoryId() === id) {
+      const remaining = categories().filter((c) => c.id !== id);
+      setCurrentCategoryId(remaining.length > 0 ? remaining[0].id : null);
+    }
+  }
+
+  function editCategory(id: number, name: string) {
+    setCategories((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, name } : c))
+    );
+  }
+
   async function pickImage() {
     const path = await open({
       multiple: false,
@@ -52,23 +79,65 @@ export function useImageLabeler() {
       setImagePath(path);
       const dataUrl = await invoke<string>("read_image", { imagePath: path });
       setImageUrl(dataUrl);
-      nextId = 1;
-      const existing = await invoke<Label[]>("load_labels", { imagePath: path });
-      if (existing.length > 0) {
-        setLabels(existing);
-        nextId = Math.max(...existing.map((l) => l.id)) + 1;
+
+      // 加载 JSON 格式
+      const annotation = await invoke<LabelMeAnnotation>("load_labels", { imagePath: path });
+
+      // 解析 categories
+      if (annotation.categories && annotation.categories.length > 0) {
+        setCategories(annotation.categories);
+        nextCategoryId = Math.max(...annotation.categories.map((c) => c.id)) + 1;
+        setCurrentCategoryId(annotation.categories[0].id);
+      } else {
+        setCategories([]);
+        nextCategoryId = 1;
+        setCurrentCategoryId(null);
+      }
+
+      // 解析 shapes → labels
+      if (annotation.shapes && annotation.shapes.length > 0) {
+        const loadedLabels: Label[] = annotation.shapes.map((shape, i) => ({
+          id: i + 1,
+          x: shape.points[0][0],
+          y: shape.points[0][1],
+          labelId: categories().find((c) => c.name === shape.label)?.id ?? 0,
+        }));
+        setLabels(loadedLabels);
+        nextId = loadedLabels.length + 1;
       } else {
         setLabels([]);
+        nextId = 1;
       }
     }
   }
 
   async function saveLabels() {
     if (!imagePath()) return;
+
+    const annotation: LabelMeAnnotation = {
+      version: "5.0",
+      flags: {},
+      shapes: labels().map((l) => {
+        const cat = categories().find((c) => c.id === l.labelId);
+        return {
+          label: cat?.name ?? "未知",
+          points: [[l.x, l.y]],
+          group_id: null,
+          shape_type: "point",
+          flags: {},
+        };
+      }),
+      imagePath: imagePath().split(/[\\/]/).pop() ?? "",
+      imageHeight: naturalSize().y,
+      imageWidth: naturalSize().x,
+      categories: categories(),
+    };
+
     await invoke("save_labels", {
       imagePath: imagePath(),
-      labels: labels(),
+      annotation,
     });
+
     const toast = document.getElementById("toast");
     if (toast) {
       toast.classList.add("toast-show");
@@ -169,29 +238,16 @@ export function useImageLabeler() {
     const pos = screenToImage(e.clientX, e.clientY);
     if (!pos) return;
 
-    setPendingX(pos.x);
-    setPendingY(pos.y);
-    setLabelText("");
-    setEditingId(null);
-    setModalOpen(true);
-  }
-
-  function confirmLabel() {
-    const text = labelText().trim();
-    if (!text) return;
-
-    if (editingId() !== null) {
-      setLabels((prev) =>
-        prev.map((l) => (l.id === editingId() ? { ...l, text } : l))
-      );
-    } else {
-      setLabels((prev) => [
-        ...prev,
-        { id: nextId++, x: pendingX(), y: pendingY(), text },
-      ]);
+    const catId = currentCategoryId();
+    if (catId === null) {
+      alert("请先添加并选择一个标签");
+      return;
     }
-    setModalOpen(false);
-    setLabelText("");
+
+    setLabels((prev) => [
+      ...prev,
+      { id: nextId++, x: pos.x, y: pos.y, labelId: catId },
+    ]);
   }
 
   function deleteLabel(id: number) {
@@ -246,12 +302,13 @@ export function useImageLabeler() {
     }
   }
 
-  function editLabel(l: Label) {
-    setPendingX(l.x);
-    setPendingY(l.y);
-    setLabelText(l.text);
-    setEditingId(l.id);
-    setModalOpen(true);
+  function editLabel(id: number) {
+    const cat = categories().find((c) => c.id === id);
+    if (!cat) return;
+    const newName = prompt("编辑标签名称:", cat.name);
+    if (newName && newName.trim()) {
+      editCategory(id, newName.trim());
+    }
   }
 
   function handleImageLoad() {
@@ -273,27 +330,22 @@ export function useImageLabeler() {
     // refs
     imageRef,
     viewportRef,
-    // state signals (直接返回 signal 本身)
+    // state signals
     imagePath,
     imageUrl,
     labels,
     zoom,
     pan,
     naturalSize,
-    modalOpen,
-    setModalOpen,
-    labelText,
-    setLabelText,
-    editingId,
     dragId,
-    pendingX,
-    pendingY,
+    // 新增
+    categories,
+    currentCategoryId,
     // actions & handlers
     pickImage,
     saveLabels,
     resetView,
     clearAll,
-    confirmLabel,
     deleteLabel,
     editLabel,
     handleWheel,
@@ -304,5 +356,10 @@ export function useImageLabeler() {
     startDrag,
     handleContextMenu,
     handleImageLoad,
+    // 新增
+    addCategory,
+    removeCategory,
+    editCategory,
+    setCurrentCategoryId,
   };
 }

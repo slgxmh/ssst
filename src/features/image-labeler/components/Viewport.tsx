@@ -1,5 +1,5 @@
 import { Show, For } from "solid-js";
-import { Vec2, Label } from "../types";
+import { Vec2, Label, Category } from "../types";
 
 interface ViewportProps {
   imageUrl: () => string;
@@ -7,6 +7,7 @@ interface ViewportProps {
   zoom: () => number;
   pan: () => Vec2;
   labels: () => Label[];
+  categories: () => Category[];
   imageRef: (el: HTMLImageElement) => void;
   viewportRef: (el: HTMLDivElement) => void;
   handleWheel: (e: WheelEvent) => void;
@@ -20,6 +21,11 @@ interface ViewportProps {
 }
 
 export default function Viewport(props: ViewportProps) {
+  function getCategoryName(labelId: number): string {
+    const cat = props.categories().find((c) => c.id === labelId);
+    return cat?.name ?? "未知";
+  }
+
   return (
     <div
       ref={props.viewportRef}
@@ -89,13 +95,13 @@ export default function Viewport(props: ViewportProps) {
                 }}
                 onMouseDown={(e) => props.startDrag(e, l.id)}
                 onContextMenu={(e) => props.handleContextMenu(e, l.id)}
-                title={`${l.text} (${Math.round(l.x)}, ${Math.round(l.y)})`}
+                title={`${getCategoryName(l.labelId)} (${Math.round(l.x)}, ${Math.round(l.y)})`}
               >
                 <span class="badge badge-primary badge-sm shadow-md font-mono">
                   {l.id}
                 </span>
                 <span class="bg-base-100/90 text-xs px-1.5 py-0.5 rounded shadow-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                  {l.text}
+                  {getCategoryName(l.labelId)}
                 </span>
               </div>
             )}
