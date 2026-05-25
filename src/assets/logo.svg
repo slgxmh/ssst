@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- 背景圆角矩形 -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bg)" stroke="#334155" stroke-width="4"/>
+
+  <!-- 中心芯片/连接器主体 -->
+  <rect x="196" y="156" width="120" height="200" rx="16" fill="none" stroke="url(#accent)" stroke-width="12" stroke-linejoin="round"/>
+
+  <!-- 芯片内部引脚（串口感） -->
+  <line x1="220" y1="196" x2="220" y2="316" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" opacity="0.9"/>
+  <line x1="244" y1="196" x2="244" y2="316" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
+  <line x1="268" y1="196" x2="268" y2="316" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
+  <line x1="292" y1="196" x2="292" y2="316" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" opacity="0.9"/>
+
+  <!-- 左侧串口数据总线 -->
+  <line x1="108" y1="216" x2="172" y2="216" stroke="#38bdf8" stroke-width="10" stroke-linecap="round"/>
+  <line x1="84" y1="256" x2="172" y2="256" stroke="#38bdf8" stroke-width="10" stroke-linecap="round" opacity="0.8"/>
+  <line x1="108" y1="296" x2="172" y2="296" stroke="#38bdf8" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- 右侧蓝牙信号波纹 -->
+  <path d="M 340 196 Q 388 216 340 256" fill="none" stroke="#818cf8" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 340 176 Q 420 216 340 276" fill="none" stroke="#818cf8" stroke-width="10" stroke-linecap="round" opacity="0.7"/>
+  <path d="M 340 156 Q 452 216 340 296" fill="none" stroke="#818cf8" stroke-width="10" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- 蓝牙 rune 符号 -->
+  <path d="M 340 196 L 380 236 L 340 276" fill="none" stroke="#c084fc" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+  <line x1="340" y1="156" x2="340" y2="316" stroke="#c084fc" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- 底部状态指示灯 -->
+  <circle cx="256" cy="372" r="14" fill="#22d3ee" filter="url(#glow)"/>
+  <circle cx="210" cy="372" r="8" fill="#334155"/>
+  <circle cx="302" cy="372" r="8" fill="#334155"/>
+</svg>
