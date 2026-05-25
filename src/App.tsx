@@ -33,6 +33,8 @@ function App() {
   const [pan, setPan] = createSignal<Vec2>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = createSignal(false);
   const [panStart, setPanStart] = createSignal<Vec2>({ x: 0, y: 0 });
+  const [dragStart, setDragStart] = createSignal<Vec2>({ x: 0, y: 0 });
+  const [hasDragged, setHasDragged] = createSignal(false);
   const [naturalSize, setNaturalSize] = createSignal<Vec2>({ x: 0, y: 0 });
 
   let imageRef: HTMLImageElement | undefined;
@@ -111,11 +113,13 @@ function App() {
   }
 
   function handleViewportMouseDown(e: MouseEvent) {
-    if (e.button === 1) {
-      // middle button pan
+    if (e.button === 0 || e.button === 1) {
+      // left or middle button pan
       e.preventDefault();
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
+      setDragStart({ x: e.clientX, y: e.clientY });
+      setHasDragged(false);
     }
   }
 
@@ -123,6 +127,16 @@ function App() {
     if (isPanning()) {
       const dx = e.clientX - panStart().x;
       const dy = e.clientY - panStart().y;
+
+      // 检测是否超过拖动阈值（5px）
+      if (!hasDragged()) {
+        const totalDx = e.clientX - dragStart().x;
+        const totalDy = e.clientY - dragStart().y;
+        if (Math.abs(totalDx) > 5 || Math.abs(totalDy) > 5) {
+          setHasDragged(true);
+        }
+      }
+
       setPanStart({ x: e.clientX, y: e.clientY });
       setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
     }
@@ -149,7 +163,10 @@ function App() {
   }
 
   function handleViewportClick(e: MouseEvent) {
-    if (isPanning() || dragId() !== null) return;
+    if (hasDragged() || dragId() !== null) {
+      setHasDragged(false);
+      return;
+    }
     if (e.button !== 0) return;
     if (!imageUrl()) return;
 
@@ -287,7 +304,7 @@ function App() {
       <Show when={imagePath()}>
         <div class="bg-base-100 border-b border-base-300 px-4 py-1 text-xs text-base-content/50 flex gap-4 shrink-0">
           <span>🖱️ 滚轮缩放</span>
-          <span>🖱️ 中键拖动</span>
+          <span>🖱️ 左键拖动</span>
           <span>🖱️ 左键点击打点</span>
           <span>🖱️ 右键删除标注</span>
           <span>🖱️ 拖拽移动标注</span>
