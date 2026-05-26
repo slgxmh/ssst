@@ -65,6 +65,18 @@ export default function Viewport(props: ViewportProps) {
 
       const group = new Konva.Group({ x: sx, y: sy });
 
+      // 透明 hit 区域（确保 group 可接收鼠标事件）
+      group.add(
+        new Konva.Rect({
+          x: -12,
+          y: -12,
+          width: 48,
+          height: 24,
+          opacity: 0,
+          listening: true,
+        })
+      );
+
       // 十字横线
       group.add(
         new Konva.Line({
@@ -189,9 +201,10 @@ export default function Viewport(props: ViewportProps) {
     });
 
     stage.on("click", (e) => {
-      if (e.target === stage) {
-        props.handleViewportClick(e.evt, stage!.width(), stage!.height());
-      }
+      // 如果点击了标注点（属于 labelLayer），不打点
+      const targetLayer = e.target.getLayer?.();
+      if (targetLayer === labelLayer) return;
+      props.handleViewportClick(e.evt, stage!.width(), stage!.height());
     });
 
     stage.on("contextmenu", (e) => {
