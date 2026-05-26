@@ -97,7 +97,14 @@ export default function Viewport(props: ViewportProps) {
                 onContextMenu={(e) => props.handleContextMenu(e, l.id)}
                 title={`${getCategoryName(l.labelId)} (${Math.round(l.x)}, ${Math.round(l.y)})`}
               >
-                <span class="badge badge-primary badge-sm shadow-md font-mono">
+                {/* 十字准星 */}
+                <svg width="16" height="16" viewBox="0 0 16 16" class="shrink-0 overflow-visible">
+                  <line x1="0" y1="8" x2="16" y2="8" stroke="#ef4444" stroke-width="1.5" />
+                  <line x1="8" y1="0" x2="8" y2="16" stroke="#ef4444" stroke-width="1.5" />
+                  <circle cx="8" cy="8" r="1.5" fill="#ef4444" />
+                </svg>
+                {/* 编号 */}
+                <span class="bg-red-500 text-white text-sm font-mono font-bold leading-none px-1.5 py-0.5 rounded shadow-sm">
                   {l.id}
                 </span>
                 <span class="bg-base-100/90 text-xs px-1.5 py-0.5 rounded shadow-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
