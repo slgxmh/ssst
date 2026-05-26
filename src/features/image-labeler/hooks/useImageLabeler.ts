@@ -23,17 +23,6 @@ export function useImageLabeler() {
   const [hasDragged, setHasDragged] = createSignal(false);
   const [naturalSize, setNaturalSize] = createSignal<Vec2>({ x: 0, y: 0 });
 
-  let imageRefEl: HTMLImageElement | undefined;
-  let viewportRefEl: HTMLDivElement | undefined;
-
-  const imageRef = (el: HTMLImageElement) => {
-    imageRefEl = el;
-  };
-
-  const viewportRef = (el: HTMLDivElement) => {
-    viewportRefEl = el;
-  };
-
   // Category management
   function addCategory(name: string) {
     const color = `hsl(${Math.random() * 360}, 70%, 50%)`;
@@ -146,29 +135,28 @@ export function useImageLabeler() {
   }
 
   function resetView() {
-    if (!viewportRefEl || !imageRefEl) return;
-    const vp = viewportRefEl.getBoundingClientRect();
-    const fitZoom = Math.min(
-      vp.width / imageRefEl.naturalWidth,
-      vp.height / imageRefEl.naturalHeight,
-      1 // 不要放大超过 100%
-    );
-    setZoom(fitZoom);
+    setZoom(1);
     setPan({ x: 0, y: 0 });
   }
 
-  function handleWheel(e: WheelEvent) {
+  function fitToViewport(canvasW: number, canvasH: number) {
+    const ns = naturalSize();
+    if (ns.x === 0 || ns.y === 0) return;
+    const fit = Math.min(canvasW / ns.x, canvasH / ns.y, 1);
+    setZoom(fit);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function handleWheel(e: WheelEvent, canvasW: number, canvasH: number) {
     e.preventDefault();
-    if (!viewportRefEl) return;
 
     const delta = -e.deltaY;
     const factor = delta > 0 ? 1.1 : 0.9;
     const oldZoom = zoom();
     const newZoom = Math.max(0.02, Math.min(20, oldZoom * factor));
 
-    const vp = viewportRefEl.getBoundingClientRect();
-    const mouseX = e.clientX - (vp.left + vp.width / 2);
-    const mouseY = e.clientY - (vp.top + vp.height / 2);
+    const mouseX = e.offsetX - canvasW / 2;
+    const mouseY = e.offsetY - canvasH / 2;
 
     setPan({
       x: mouseX - (mouseX - pan().x) * (newZoom / oldZoom),
@@ -211,23 +199,23 @@ export function useImageLabeler() {
     setIsPanning(false);
   }
 
-  function screenToImage(clientX: number, clientY: number): Vec2 | null {
-    if (!viewportRefEl || !imageRefEl) return null;
-    const vp = viewportRefEl.getBoundingClientRect();
-    const w = imageRefEl.naturalWidth;
-    const h = imageRefEl.naturalHeight;
+  function screenToImage(
+    offsetX: number,
+    offsetY: number,
+    canvasW: number,
+    canvasH: number
+  ): Vec2 | null {
+    const w = naturalSize().x;
+    const h = naturalSize().y;
 
-    const dx = clientX - (vp.left + vp.width / 2) - pan().x;
-    const dy = clientY - (vp.top + vp.height / 2) - pan().y;
-
-    const x = dx / zoom() + w / 2;
-    const y = dy / zoom() + h / 2;
+    const x = (offsetX - canvasW / 2 - pan().x) / zoom() + w / 2;
+    const y = (offsetY - canvasH / 2 - pan().y) / zoom() + h / 2;
 
     if (x < 0 || x > w || y < 0 || y > h) return null;
     return { x, y };
   }
 
-  function handleViewportClick(e: MouseEvent) {
+  function handleViewportClick(e: MouseEvent, canvasW: number, canvasH: number) {
     if (hasDragged() || dragId() !== null) {
       setHasDragged(false);
       return;
@@ -235,7 +223,7 @@ export function useImageLabeler() {
     if (e.button !== 0) return;
     if (!imageUrl()) return;
 
-    const pos = screenToImage(e.clientX, e.clientY);
+    const pos = screenToImage(e.offsetX, e.offsetY, canvasW, canvasH);
     if (!pos) return;
 
     const catId = currentCategoryId();
@@ -311,25 +299,11 @@ export function useImageLabeler() {
     }
   }
 
-  function handleImageLoad() {
-    if (imageRefEl) {
-      const w = imageRefEl.naturalWidth;
-      const h = imageRefEl.naturalHeight;
-      setNaturalSize({ x: w, y: h });
-      // auto-fit on first load
-      if (viewportRefEl) {
-        const vp = viewportRefEl.getBoundingClientRect();
-        const fit = Math.min(vp.width / w, vp.height / h, 1);
-        setZoom(fit);
-        setPan({ x: 0, y: 0 });
-      }
-    }
+  function handleImageLoad(width: number, height: number) {
+    setNaturalSize({ x: width, y: height });
   }
 
   return {
-    // refs
-    imageRef,
-    viewportRef,
     // state signals
     imagePath,
     imageUrl,
@@ -338,13 +312,13 @@ export function useImageLabeler() {
     pan,
     naturalSize,
     dragId,
-    // 新增
     categories,
     currentCategoryId,
     // actions & handlers
     pickImage,
     saveLabels,
     resetView,
+    fitToViewport,
     clearAll,
     deleteLabel,
     editLabel,
@@ -356,7 +330,7 @@ export function useImageLabeler() {
     startDrag,
     handleContextMenu,
     handleImageLoad,
-    // 新增
+    // category
     addCategory,
     removeCategory,
     editCategory,

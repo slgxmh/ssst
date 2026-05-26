@@ -5,8 +5,6 @@ import LabelList from "./components/LabelList";
 
 export default function ImageLabelerPage() {
   const {
-    // refs
-    imageRef, viewportRef,
     // state
     imagePath, imageUrl, labels, zoom, pan, naturalSize,
     categories, currentCategoryId,
@@ -18,7 +16,7 @@ export default function ImageLabelerPage() {
     handleViewportMouseUp, handleViewportClick,
     // label handlers
     startDrag, handleContextMenu,
-    handleImageLoad,
+    handleImageLoad, fitToViewport,
     // category actions
     addCategory, removeCategory, editCategory, setCurrentCategoryId,
   } = useImageLabeler();
@@ -55,8 +53,6 @@ export default function ImageLabelerPage() {
           pan={pan}
           labels={labels}
           categories={categories}
-          imageRef={imageRef}
-          viewportRef={viewportRef}
           handleWheel={handleWheel}
           handleViewportMouseDown={handleViewportMouseDown}
           handleViewportMouseMove={handleViewportMouseMove}
@@ -65,6 +61,7 @@ export default function ImageLabelerPage() {
           startDrag={startDrag}
           handleContextMenu={handleContextMenu}
           handleImageLoad={handleImageLoad}
+          fitToViewport={fitToViewport}
         />
       </div>
     </div>
