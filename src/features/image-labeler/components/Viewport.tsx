@@ -42,8 +42,8 @@ export default function Viewport(props: ViewportProps) {
 
     if (!stage || !transformGroup || !labelLayer || !imageLayer || ns.x === 0) return;
 
-    transformGroup.x(p.x);
-    transformGroup.y(p.y);
+    transformGroup.x(stage.width() / 2 + p.x);
+    transformGroup.y(stage.height() / 2 + p.y);
     transformGroup.scaleX(z);
     transformGroup.scaleY(z);
 
