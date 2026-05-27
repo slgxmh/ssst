@@ -1,0 +1,164 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+          - platform: "ubuntu-22.04"
+            args: ""
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "ssst ${{ github.ref_name }}"
+          releaseBody: |
+            详见附件下载对应平台安装包。
+            - macOS: `.dmg`
+            - Windows: `.msi` / `.exe`
+            - Linux: `.AppImage` / `.deb`
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      - name: Determine artifact name
+        id: vars
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
+            if [[ "${{ matrix.args }}" == *"aarch64"* ]]; then
+              echo "name=macos-aarch64" >> "$GITHUB_OUTPUT"
+            else
+              echo "name=macos-x86_64" >> "$GITHUB_OUTPUT"
+            fi
+          elif [[ "${{ matrix.platform }}" == "ubuntu-22.04" ]]; then
+            echo "name=linux-x86_64" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=windows-x86_64" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Collect signature files
+        shell: bash
+        run: |
+          mkdir -p sigs
+          find src-tauri/target/release/bundle -type f -name "*.sig" -exec cp {} sigs/ \;
+
+      - name: Upload signature artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sigs-${{ steps.vars.outputs.name }}
+          path: sigs/*.sig
+          if-no-files-found: ignore
+
+  publish-latest-json:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all signature artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: sigs
+          pattern: sigs-*
+          merge-multiple: true
+
+      - name: Generate latest.json
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          REPO="${{ github.repository }}"
+
+          cat > latest.json <<EOF
+          {
+            "version": "$VERSION",
+            "notes": "Release ${{ github.ref_name }}",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {}
+          }
+          EOF
+
+          for sigfile in sigs/*.sig; do
+            [ -e "$sigfile" ] || continue
+
+            sig=$(tr -d '\n\r' < "$sigfile")
+            basename_sig=$(basename "$sigfile")
+            original="${basename_sig%.sig}"
+
+            platform=""
+            if [[ "$original" == *"aarch64"* ]] || [[ "$original" == *"arm64"* ]]; then
+              if [[ "$original" == *".app.tar.gz"* ]] || [[ "$original" == *".dmg"* ]] || [[ "$original" == *".app"* ]]; then
+                platform="darwin-aarch64"
+              fi
+            elif [[ "$original" == *"x86_64"* ]] || [[ "$original" == *"x64"* ]]; then
+              if [[ "$original" == *".app.tar.gz"* ]] || [[ "$original" == *".dmg"* ]] || [[ "$original" == *".app"* ]]; then
+                platform="darwin-x86_64"
+              elif [[ "$original" == *".AppImage"* ]] || [[ "$original" == *".appimage"* ]]; then
+                platform="linux-x86_64"
+              elif [[ "$original" == *".msi"* ]] || [[ "$original" == *".exe"* ]]; then
+                platform="windows-x86_64"
+              fi
+            elif [[ "$original" == *"amd64"* ]]; then
+              if [[ "$original" == *".AppImage"* ]] || [[ "$original" == *".appimage"* ]]; then
+                platform="linux-x86_64"
+              fi
+            fi
+
+            if [ -n "$platform" ]; then
+              url="https://github.com/$REPO/releases/download/${{ github.ref_name }}/$original"
+              jq --arg platform "$platform" --arg url "$url" --arg sig "$sig" \
+                '.platforms[$platform] = {"signature": $sig, "url": $url}' latest.json > tmp.json && mv tmp.json latest.json
+            fi
+          done
+
+          echo "Generated latest.json:"
+          cat latest.json
+
+      - name: Upload latest.json to Release
+        run: |
+          gh release upload "${{ github.ref_name }}" latest.json --clobber --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
