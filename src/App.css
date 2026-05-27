@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+.toast-show {
+  opacity: 1 !important;
+}
