@@ -2,25 +2,61 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
-  workflow_dispatch:
+    branches: [main]
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      should_release: ${{ steps.check.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: check
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.tag }} already exists, skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push tag
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
   build:
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: "macos-latest"
-            args: "--target aarch64-apple-darwin"
-          - platform: "macos-latest"
-            args: "--target x86_64-apple-darwin"
-          - platform: "ubuntu-22.04"
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
             args: ""
-          - platform: "windows-latest"
+          - platform: windows-latest
             args: ""
 
     runs-on: ${{ matrix.platform }}
@@ -53,8 +89,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "ssst ${{ github.ref_name }}"
+          tagName: ${{ needs.check-version.outputs.tag }}
+          releaseName: ssst ${{ needs.check-version.outputs.tag }}
           releaseBody: |
             详见附件下载对应平台安装包。
             - macOS: `.dmg`
@@ -94,7 +130,8 @@ jobs:
           if-no-files-found: ignore
 
   publish-latest-json:
-    needs: build
+    needs: [check-version, build]
+    if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -109,13 +146,14 @@ jobs:
       - name: Generate latest.json
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ needs.check-version.outputs.version }}"
+          TAG="${{ needs.check-version.outputs.tag }}"
           REPO="${{ github.repository }}"
 
           cat > latest.json <<EOF
           {
             "version": "$VERSION",
-            "notes": "Release ${{ github.ref_name }}",
+            "notes": "Release $TAG",
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {}
           }
@@ -148,7 +186,7 @@ jobs:
             fi
 
             if [ -n "$platform" ]; then
-              url="https://github.com/$REPO/releases/download/${{ github.ref_name }}/$original"
+              url="https://github.com/$REPO/releases/download/$TAG/$original"
               jq --arg platform "$platform" --arg url "$url" --arg sig "$sig" \
                 '.platforms[$platform] = {"signature": $sig, "url": $url}' latest.json > tmp.json && mv tmp.json latest.json
             fi
@@ -159,6 +197,6 @@ jobs:
 
       - name: Upload latest.json to Release
         run: |
-          gh release upload "${{ github.ref_name }}" latest.json --clobber --repo "${{ github.repository }}"
+          gh release upload "${{ needs.check-version.outputs.tag }}" latest.json --clobber --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
