@@ -6,8 +6,6 @@ interface ToolbarProps {
   zoom: () => number;
   pickImage: () => void;
   saveLabels: () => void;
-  resetView: () => void;
-  clearAll: () => void;
   categories: () => Category[];
   currentCategoryId: () => number | null;
   setCurrentCategoryId: (id: number) => void;
@@ -80,12 +78,6 @@ export default function Toolbar(props: ToolbarProps) {
           <Show when={props.imagePath()}>
             <button class="btn btn-success btn-sm" onClick={props.saveLabels}>
               💾 保存 JSON
-            </button>
-            <button class="btn btn-ghost btn-sm" onClick={props.resetView}>
-              ⊕ 适应
-            </button>
-            <button class="btn btn-ghost btn-sm" onClick={props.clearAll}>
-              🗑️ 清除
             </button>
           </Show>
         </div>

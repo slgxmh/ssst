@@ -16,6 +16,18 @@ export interface Vec2 {
   y: number;
 }
 
+export interface CropConfig {
+  tileWidth: number;
+  tileHeight: number;
+  overlap: number;
+}
+
+export interface CropResult {
+  totalTiles: number;
+  tilesWithLabels: number;
+  outputDir: string;
+}
+
 export interface LabelMeAnnotation {
   version: string;
   flags: Record<string, boolean>;

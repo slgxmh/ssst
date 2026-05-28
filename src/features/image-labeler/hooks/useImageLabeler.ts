@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Label, Vec2, Category, LabelMeAnnotation } from "../types";
+import type { Label, Vec2, Category, LabelMeAnnotation, CropConfig, CropResult } from "../types";
 
 export function useImageLabeler() {
   let nextId = 1;
@@ -22,6 +22,11 @@ export function useImageLabeler() {
   const [dragStart, setDragStart] = createSignal<Vec2>({ x: 0, y: 0 });
   const [hasDragged, setHasDragged] = createSignal(false);
   const [naturalSize, setNaturalSize] = createSignal<Vec2>({ x: 0, y: 0 });
+
+  // Crop export
+  const [cropModalOpen, setCropModalOpen] = createSignal(false);
+  const [cropConfig, setCropConfig] = createSignal<CropConfig | null>(null);
+  const [showCropGrid, setShowCropGrid] = createSignal(false);
 
   // Category management
   function addCategory(name: string) {
@@ -303,6 +308,22 @@ export function useImageLabeler() {
     setNaturalSize({ x: width, y: height });
   }
 
+  async function exportCrops(config: CropConfig, outputDir: string): Promise<CropResult> {
+    if (!imagePath()) {
+      throw new Error("未选择图片");
+    }
+    const result = await invoke<CropResult>("crop_image", {
+      imagePath: imagePath(),
+      outputDir: outputDir || null,
+      config: {
+        tile_width: config.tileWidth,
+        tile_height: config.tileHeight,
+        overlap: config.overlap,
+      },
+    });
+    return result;
+  }
+
   return {
     // state signals
     imagePath,
@@ -335,5 +356,13 @@ export function useImageLabeler() {
     removeCategory,
     editCategory,
     setCurrentCategoryId,
+    // crop export
+    cropModalOpen,
+    setCropModalOpen,
+    cropConfig,
+    setCropConfig,
+    showCropGrid,
+    setShowCropGrid,
+    exportCrops,
   };
 }
