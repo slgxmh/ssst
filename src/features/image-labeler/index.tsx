@@ -2,6 +2,7 @@ import { useImageLabeler } from "./hooks/useImageLabeler";
 import Toolbar from "./components/Toolbar";
 import Viewport from "./components/Viewport";
 import LabelList from "./components/LabelList";
+import CropModal from "./components/CropModal";
 
 export default function ImageLabelerPage() {
   const {
@@ -19,6 +20,11 @@ export default function ImageLabelerPage() {
     handleImageLoad, fitToViewport,
     // category actions
     addCategory, removeCategory, editCategory, setCurrentCategoryId,
+    // crop export
+    cropModalOpen, setCropModalOpen,
+    cropConfig, setCropConfig,
+    showCropGrid, setShowCropGrid,
+    exportCrops,
   } = useImageLabeler();
 
   return (
@@ -37,8 +43,6 @@ export default function ImageLabelerPage() {
           zoom={zoom}
           pickImage={pickImage}
           saveLabels={saveLabels}
-          resetView={resetView}
-          clearAll={clearAll}
           categories={categories}
           currentCategoryId={currentCategoryId}
           setCurrentCategoryId={setCurrentCategoryId}
@@ -62,6 +66,27 @@ export default function ImageLabelerPage() {
           handleContextMenu={handleContextMenu}
           handleImageLoad={handleImageLoad}
           fitToViewport={fitToViewport}
+          resetView={resetView}
+          clearAll={clearAll}
+          onOpenCropModal={() => setCropModalOpen(true)}
+          cropConfig={cropConfig}
+          showCropGrid={showCropGrid}
+        />
+        <CropModal
+          open={cropModalOpen}
+          onClose={() => {
+            setShowCropGrid(false);
+            setCropModalOpen(false);
+          }}
+          onExport={async (config, outputDir) => {
+            setCropConfig(config);
+            const result = await exportCrops(config, outputDir);
+            setShowCropGrid(false);
+            return result;
+          }}
+          onConfigChange={setCropConfig}
+          onPreviewChange={setShowCropGrid}
+          naturalSize={naturalSize}
         />
       </div>
     </div>

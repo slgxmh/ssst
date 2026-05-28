@@ -1,6 +1,6 @@
 import { Show, createSignal, createEffect } from "solid-js";
 import Konva from "konva";
-import type { Label, Vec2, Category } from "../types";
+import type { Label, Vec2, Category, CropConfig } from "../types";
 
 interface ViewportProps {
   imageUrl: () => string;
@@ -18,17 +18,24 @@ interface ViewportProps {
   handleContextMenu: (e: MouseEvent, id: number) => void;
   handleImageLoad: (width: number, height: number) => void;
   fitToViewport: (canvasW: number, canvasH: number) => void;
+  resetView: () => void;
+  clearAll: () => void;
+  onOpenCropModal: () => void;
+  cropConfig: () => CropConfig | null;
+  showCropGrid: () => boolean;
 }
 
 export default function Viewport(props: ViewportProps) {
   let stage: Konva.Stage | undefined;
   let imageLayer: Konva.Layer | undefined;
   let labelLayer: Konva.Layer | undefined;
+  let gridLayer: Konva.Layer | undefined;
   let transformGroup: Konva.Group | undefined;
   let konvaImage: Konva.Image | undefined;
 
   const [hoveredLabel, setHoveredLabel] = createSignal<Label | null>(null);
   const [tooltipPos, setTooltipPos] = createSignal({ x: 0, y: 0 });
+  const [menuOpen, setMenuOpen] = createSignal(false);
 
   function getCategoryName(labelId: number): string {
     const cat = props.categories().find((c) => c.id === labelId);
@@ -48,6 +55,7 @@ export default function Viewport(props: ViewportProps) {
     transformGroup.scaleY(z);
 
     rebuildLabels(z, p, ns, stage.width(), stage.height());
+    rebuildGrid(ns);
     imageLayer.batchDraw();
   }
 
@@ -158,6 +166,48 @@ export default function Viewport(props: ViewportProps) {
     labelLayer.batchDraw();
   }
 
+  function rebuildGrid(ns: Vec2) {
+    if (!gridLayer || !transformGroup) return;
+    gridLayer.destroyChildren();
+
+    const config = props.cropConfig();
+    if (!config || !props.showCropGrid() || ns.x === 0 || ns.y === 0) return;
+
+    const strideX = Math.max(1, config.tileWidth - config.overlap);
+    const strideY = Math.max(1, config.tileHeight - config.overlap);
+
+    const group = new Konva.Group({
+      x: -ns.x / 2,
+      y: -ns.y / 2,
+    });
+
+    for (let y = 0; y < ns.y; y += strideY) {
+      const h = Math.min(config.tileHeight, ns.y - y);
+      if (h <= 0) break;
+      for (let x = 0; x < ns.x; x += strideX) {
+        const w = Math.min(config.tileWidth, ns.x - x);
+        if (w <= 0) break;
+
+        group.add(
+          new Konva.Rect({
+            x,
+            y,
+            width: w,
+            height: h,
+            stroke: "#3b82f6",
+            strokeWidth: 2 / props.zoom(),
+            dash: [8 / props.zoom(), 4 / props.zoom()],
+            fill: "rgba(59, 130, 246, 0.05)",
+            listening: false,
+          })
+        );
+      }
+    }
+
+    gridLayer.add(group);
+    gridLayer.batchDraw();
+  }
+
   function initContainer(el: HTMLDivElement) {
     stage = new Konva.Stage({
       container: el,
@@ -167,8 +217,10 @@ export default function Viewport(props: ViewportProps) {
 
     imageLayer = new Konva.Layer();
     labelLayer = new Konva.Layer();
+    gridLayer = new Konva.Layer();
     stage.add(imageLayer);
     stage.add(labelLayer);
+    stage.add(gridLayer);
 
     transformGroup = new Konva.Group({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
     imageLayer.add(transformGroup);
@@ -217,6 +269,7 @@ export default function Viewport(props: ViewportProps) {
       stage = undefined;
       imageLayer = undefined;
       labelLayer = undefined;
+      gridLayer = undefined;
       transformGroup = undefined;
       konvaImage = undefined;
     };
@@ -261,6 +314,14 @@ export default function Viewport(props: ViewportProps) {
     renderView();
   });
 
+  // 监听网格配置变化
+  createEffect(() => {
+    props.cropConfig();
+    props.showCropGrid();
+    props.naturalSize();
+    renderView();
+  });
+
   return (
     <div class="flex-1 min-h-0 relative overflow-hidden bg-base-300 cursor-crosshair">
       <Show
@@ -285,6 +346,38 @@ export default function Viewport(props: ViewportProps) {
           </div>
         }
       >
+        {/* 顶部操作栏 */}
+        <div class="absolute top-3 left-3 z-20">
+          <div class="dropdown">
+            <button
+              class="btn btn-xs btn-primary shadow-md"
+              onClick={() => setMenuOpen(!menuOpen())}
+            >
+              ⚙️ 操作 ▼
+            </button>
+            <Show when={menuOpen()}>
+              <ul class="dropdown-content menu menu-sm bg-base-100 rounded-box shadow-lg z-30 mt-1 w-40 border border-base-300">
+                <li>
+                  <button onClick={() => { props.resetView(); setMenuOpen(false); }}>
+                    ⊕ 适应视图
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => { props.clearAll(); setMenuOpen(false); }}>
+                    🗑️ 清除标注
+                  </button>
+                </li>
+                <li class="border-t border-base-300"></li>
+                <li>
+                  <button onClick={() => { props.onOpenCropModal(); setMenuOpen(false); }}>
+                    ✂️ 裁切导出
+                  </button>
+                </li>
+              </ul>
+            </Show>
+          </div>
+        </div>
+
         <div ref={initContainer} class="w-full h-full" />
         <Show when={hoveredLabel()}>
           {(l) => {
