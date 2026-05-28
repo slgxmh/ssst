@@ -1,4 +1,3 @@
-use image::GenericImageView;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -127,7 +126,7 @@ fn crop_image(
     config: CropConfig,
 ) -> Result<CropResult, String> {
     // 1. 读取原图
-    let img = image::open(&image_path).map_err(|e| e.to_string())?;
+    let mut img = image::open(&image_path).map_err(|e| e.to_string())?;
     let img_width = img.width();
     let img_height = img.height();
 
@@ -183,7 +182,7 @@ fn crop_image(
             }
 
             // 裁切图片
-            let sub_img = img.view(crop_x, crop_y, crop_w, crop_h).to_image();
+            let sub_img = img.crop(crop_x, crop_y, crop_w, crop_h);
             let tile_name = format!("{}_crop_r{}_c{}", base_name, row, col);
             let tile_img_path = out_dir.join(format!("{}.{}", tile_name, ext));
             sub_img.save(&tile_img_path).map_err(|e| e.to_string())?;
@@ -245,6 +244,58 @@ fn crop_image(
         tiles_with_labels,
         output_dir: out_dir.to_string_lossy().to_string(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_crop_image() {
+        let image_path = r"D:\project\datasets\cutton\low_mazine\DJI_0468.JPG";
+        let output_dir = r"D:\project\datasets\cutton\low_mazine_crop_test";
+
+        // 清理旧的测试输出
+        let _ = std::fs::remove_dir_all(output_dir);
+        std::fs::create_dir_all(output_dir).expect("创建输出目录失败");
+
+        let result = crop_image(
+            image_path.to_string(),
+            Some(output_dir.to_string()),
+            CropConfig {
+                tile_width: 512,
+                tile_height: 512,
+                overlap: 128,
+            },
+        );
+
+        let r = result.expect("crop_image 应该成功");
+        assert!(r.total_tiles > 0, "应该生成至少一个瓦片");
+
+        // 验证每个 jpg 文件都非空
+        let entries = std::fs::read_dir(output_dir).expect("无法读取输出目录");
+        let mut jpg_count = 0;
+        for entry in entries {
+            let entry = entry.expect("无法读取条目");
+            let path = entry.path();
+            if let Some(ext) = path.extension() {
+                if ext == "jpg" {
+                    let meta = entry.metadata().expect("无法读取元数据");
+                    assert!(
+                        meta.len() > 0,
+                        "文件 {} 不应该为空",
+                        path.display()
+                    );
+                    jpg_count += 1;
+                }
+            }
+        }
+        assert!(jpg_count > 0, "应该生成至少一个 jpg 文件");
+        assert_eq!(jpg_count, r.total_tiles, "jpg 文件数量应该等于瓦片总数");
+
+        // 清理
+        let _ = std::fs::remove_dir_all(output_dir);
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
