@@ -3,6 +3,7 @@ import Toolbar from "./components/Toolbar";
 import Viewport from "./components/Viewport";
 import LabelList from "./components/LabelList";
 import CropModal from "./components/CropModal";
+import { selectDirectory } from "../../utils/fileSystem";
 
 export default function ImageLabelerPage() {
   const {
@@ -78,9 +79,10 @@ export default function ImageLabelerPage() {
             setShowCropGrid(false);
             setCropModalOpen(false);
           }}
-          onExport={async (config, outputDir) => {
+          onExport={async (config) => {
             setCropConfig(config);
-            const result = await exportCrops(config, outputDir);
+            const dirHandle = await selectDirectory();
+            const result = await exportCrops(config, dirHandle);
             setShowCropGrid(false);
             return result;
           }}

@@ -1,7 +1,12 @@
 import { createSignal } from "solid-js";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import type { Label, Vec2, Category, LabelMeAnnotation, CropConfig, CropResult } from "../types";
+import {
+  selectImageFile,
+  readImageAsDataURL,
+  loadAnnotationFile,
+  saveAnnotationFile,
+  writeFileToDirectory,
+} from "../../../utils/fileSystem";
 
 export function useImageLabeler() {
   let nextId = 1;
@@ -58,50 +63,41 @@ export function useImageLabeler() {
   }
 
   async function pickImage() {
-    const path = await open({
-      multiple: false,
-      directory: false,
-      filters: [
-        {
-          name: "图片",
-          extensions: ["png", "jpg", "jpeg", "gif", "bmp", "webp"],
-        },
-      ],
-    });
+    const file = await selectImageFile();
+    const fileName = file.name;
+    setImagePath(fileName);
 
-    if (typeof path === "string") {
-      setImagePath(path);
-      const dataUrl = await invoke<string>("read_image", { imagePath: path });
-      setImageUrl(dataUrl);
+    // Read image as data URL
+    const dataUrl = await readImageAsDataURL(file);
+    setImageUrl(dataUrl);
 
-      // 加载 JSON 格式
-      const annotation = await invoke<LabelMeAnnotation>("load_labels", { imagePath: path });
+    // Try to load corresponding JSON annotation file
+    const annotation = await loadAnnotationFile(file);
 
-      // 解析 categories
-      if (annotation.categories && annotation.categories.length > 0) {
-        setCategories(annotation.categories);
-        nextCategoryId = Math.max(...annotation.categories.map((c) => c.id)) + 1;
-        setCurrentCategoryId(annotation.categories[0].id);
-      } else {
-        setCategories([]);
-        nextCategoryId = 1;
-        setCurrentCategoryId(null);
-      }
+    // Parse categories
+    if (annotation && annotation.categories && annotation.categories.length > 0) {
+      setCategories(annotation.categories);
+      nextCategoryId = Math.max(...annotation.categories.map((c: { id: number }) => c.id)) + 1;
+      setCurrentCategoryId(annotation.categories[0].id);
+    } else {
+      setCategories([]);
+      nextCategoryId = 1;
+      setCurrentCategoryId(null);
+    }
 
-      // 解析 shapes → labels
-      if (annotation.shapes && annotation.shapes.length > 0) {
-        const loadedLabels: Label[] = annotation.shapes.map((shape, i) => ({
-          id: i + 1,
-          x: shape.points[0][0],
-          y: shape.points[0][1],
-          labelId: categories().find((c) => c.name === shape.label)?.id ?? 0,
-        }));
-        setLabels(loadedLabels);
-        nextId = loadedLabels.length + 1;
-      } else {
-        setLabels([]);
-        nextId = 1;
-      }
+    // Parse shapes → labels
+    if (annotation && annotation.shapes && annotation.shapes.length > 0) {
+      const loadedLabels: Label[] = annotation.shapes.map((shape: { points: number[][]; label: string }, i: number) => ({
+        id: i + 1,
+        x: shape.points[0][0],
+        y: shape.points[0][1],
+        labelId: categories().find((c) => c.name === shape.label)?.id ?? 0,
+      }));
+      setLabels(loadedLabels);
+      nextId = loadedLabels.length + 1;
+    } else {
+      setLabels([]);
+      nextId = 1;
     }
   }
 
@@ -121,16 +117,14 @@ export function useImageLabeler() {
           flags: {},
         };
       }),
-      imagePath: imagePath().split(/[\\/]/).pop() ?? "",
+      imagePath: imagePath(),
       imageHeight: naturalSize().y,
       imageWidth: naturalSize().x,
       categories: categories(),
     };
 
-    await invoke("save_labels", {
-      imagePath: imagePath(),
-      annotation,
-    });
+    const suggestedName = imagePath().replace(/\.[^.]+$/, ".json");
+    await saveAnnotationFile(annotation, suggestedName);
 
     const toast = document.getElementById("toast");
     if (toast) {
@@ -308,20 +302,89 @@ export function useImageLabeler() {
     setNaturalSize({ x: width, y: height });
   }
 
-  async function exportCrops(config: CropConfig, outputDir: string): Promise<CropResult> {
+  async function exportCrops(config: CropConfig, dirHandle: FileSystemDirectoryHandle): Promise<CropResult> {
     if (!imagePath()) {
       throw new Error("未选择图片");
     }
-    const result = await invoke<CropResult>("crop_image", {
-      imagePath: imagePath(),
-      outputDir: outputDir || null,
-      config: {
-        tile_width: config.tileWidth,
-        tile_height: config.tileHeight,
-        overlap: config.overlap,
-      },
-    });
-    return result;
+
+    const img = new Image();
+    img.src = imageUrl();
+    await new Promise((resolve) => { img.onload = resolve; });
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+
+    const imgWidth = img.naturalWidth;
+    const imgHeight = img.naturalHeight;
+
+    const strideX = Math.max(1, config.tileWidth - config.overlap);
+    const strideY = Math.max(1, config.tileHeight - config.overlap);
+
+    let totalTiles = 0;
+    let tilesWithLabels = 0;
+
+    for (let y = 0, row = 0; y < imgHeight; y += strideY, row++) {
+      const cropH = Math.min(config.tileHeight, imgHeight - y);
+      if (cropH <= 0) break;
+
+      for (let x = 0, col = 0; x < imgWidth; x += strideX, col++) {
+        const cropW = Math.min(config.tileWidth, imgWidth - x);
+        if (cropW <= 0) break;
+
+        // Crop image using canvas
+        canvas.width = cropW;
+        canvas.height = cropH;
+        ctx.drawImage(img, x, y, cropW, cropH, 0, 0, cropW, cropH);
+
+        const tileName = `${imagePath().replace(/\.[^.]+$/, "")}_crop_r${row}_c${col}`;
+
+        // Get image blob
+        const blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((b) => resolve(b!), "image/png");
+        });
+        await writeFileToDirectory(dirHandle, `${tileName}.png`, blob);
+
+        // Filter and transform labels
+        const tileShapes = [];
+        for (const label of labels()) {
+          const cat = categories().find((c) => c.id === label.labelId);
+          if (label.x >= x && label.x < x + cropW && label.y >= y && label.y < y + cropH) {
+            tileShapes.push({
+              label: cat?.name ?? "未知",
+              points: [[label.x - x, label.y - y]],
+              group_id: null,
+              shape_type: "point",
+              flags: {},
+            });
+          }
+        }
+
+        if (tileShapes.length > 0) {
+          tilesWithLabels++;
+        }
+
+        // Save JSON annotation
+        const tileAnnotation: LabelMeAnnotation = {
+          version: "5.0",
+          flags: {},
+          shapes: tileShapes,
+          imagePath: `${tileName}.png`,
+          imageHeight: cropH,
+          imageWidth: cropW,
+          categories: categories(),
+        };
+        const jsonBlob = new Blob([JSON.stringify(tileAnnotation, null, 2)], { type: "application/json" });
+        await writeFileToDirectory(dirHandle, `${tileName}.json`, jsonBlob);
+
+        totalTiles++;
+      }
+    }
+
+    return {
+      totalTiles,
+      tilesWithLabels,
+      outputDir: dirHandle.name,
+    };
   }
 
   return {
