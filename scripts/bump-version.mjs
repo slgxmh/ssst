@@ -34,18 +34,6 @@ const files = [
     replacement: `"version": "${newVersion}"`,
     name: 'package.json',
   },
-  {
-    path: join(root, 'src-tauri', 'Cargo.toml'),
-    regex: /^version\s*=\s*"[^"]+"/m,
-    replacement: `version = "${newVersion}"`,
-    name: 'Cargo.toml',
-  },
-  {
-    path: join(root, 'src-tauri', 'tauri.conf.json'),
-    regex: /"version":\s*"[^"]+"/,
-    replacement: `"version": "${newVersion}"`,
-    name: 'tauri.conf.json',
-  },
 ];
 
 console.log(`Bumping version to ${newVersion}\n`);
@@ -91,7 +79,7 @@ console.log('');
 if (allSuccess) {
   console.log('✅ All version numbers updated successfully!');
   console.log(`\nNext steps:`);
-  console.log(`  git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json`);
+  console.log(`  git add package.json`);
   console.log(`  git commit -m "chore: bump version to ${newVersion}"`);
   process.exit(0);
 } else {
