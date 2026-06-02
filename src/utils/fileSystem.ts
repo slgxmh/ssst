@@ -247,6 +247,29 @@ export async function selectDirectory(): Promise<FileSystemDirectoryHandle> {
   }
 }
 
+export async function selectImageFileWithDirectory(): Promise<{
+  file: File;
+  dirHandle: FileSystemDirectoryHandle | null;
+}> {
+  const file = await selectImageFile();
+
+  if (checkFileSystemAccessSupport()) {
+    showBrowserWarning();
+    try {
+      const dirHandle = await window.showDirectoryPicker();
+      return { file, dirHandle };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return { file, dirHandle: null };
+      }
+      console.warn("[FileSystem] 无法获取目录权限，将使用降级方案:", error);
+      return { file, dirHandle: null };
+    }
+  }
+
+  return { file, dirHandle: null };
+}
+
 /**
  * 向指定目录写入文件
  */
