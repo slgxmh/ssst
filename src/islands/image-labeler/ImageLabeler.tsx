@@ -3,9 +3,9 @@ import Toolbar from "./components/Toolbar";
 import Viewport from "./components/Viewport";
 import LabelList from "./components/LabelList";
 import CropModal from "./components/CropModal";
-import { selectDirectory } from "../../islands/image-labeler/utils/fileSystem";
+import { selectDirectory } from "./utils/fileSystem";
 
-export default function ImageLabelerPage() {
+export default function ImageLabeler() {
   const {
     // state
     imagePath, imageUrl, labels, zoom, pan, naturalSize,

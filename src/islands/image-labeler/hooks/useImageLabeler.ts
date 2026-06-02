@@ -6,7 +6,7 @@ import {
   loadAnnotationFile,
   saveAnnotationFile,
   writeFileToDirectory,
-} from "../../../islands/image-labeler/utils/fileSystem";
+} from "../utils/fileSystem";
 
 export function useImageLabeler() {
   let nextId = 1;

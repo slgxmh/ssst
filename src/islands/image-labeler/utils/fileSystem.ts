@@ -1,4 +1,4 @@
-import { LabelMeAnnotation } from "../features/image-labeler/types";
+import { LabelMeAnnotation } from "../types";
 
 /**
  * 检查浏览器是否支持 File System Access API
