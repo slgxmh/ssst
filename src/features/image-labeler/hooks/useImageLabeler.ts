@@ -3,7 +3,6 @@ import type { Label, Vec2, Category, LabelMeAnnotation, CropConfig, CropResult }
 import {
   selectImageFileWithDirectory,
   readImageAsDataURL,
-  loadAnnotationFile,
   saveAnnotationFile,
   writeFileToDirectory,
 } from "../../../islands/image-labeler/utils/fileSystem";
@@ -76,12 +75,14 @@ export function useImageLabeler() {
 
     const annotation = newDirHandle
       ? await loadAnnotationFromDirHandle(newDirHandle, fileName)
-      : await loadAnnotationFile(file);
+      : null;
 
+    let loadedCategories: Category[] = [];
     if (annotation && annotation.categories && annotation.categories.length > 0) {
-      setCategories(annotation.categories);
-      nextCategoryId = Math.max(...annotation.categories.map((c: { id: number }) => c.id)) + 1;
-      setCurrentCategoryId(annotation.categories[0].id);
+      loadedCategories = annotation.categories;
+      setCategories(loadedCategories);
+      nextCategoryId = Math.max(...loadedCategories.map((c: { id: number }) => c.id)) + 1;
+      setCurrentCategoryId(loadedCategories[0].id);
     } else {
       setCategories([]);
       nextCategoryId = 1;
@@ -93,7 +94,7 @@ export function useImageLabeler() {
         id: i + 1,
         x: shape.points[0][0],
         y: shape.points[0][1],
-        labelId: categories().find((c) => c.name === shape.label)?.id ?? 0,
+        labelId: loadedCategories.find((c) => c.name === shape.label)?.id ?? 0,
       }));
       setLabels(loadedLabels);
       nextId = loadedLabels.length + 1;
