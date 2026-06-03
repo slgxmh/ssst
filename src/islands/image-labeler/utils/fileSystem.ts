@@ -1,4 +1,4 @@
-import { LabelMeAnnotation } from "../features/image-labeler/types";
+import { LabelMeAnnotation } from "../types";
 
 /**
  * 检查浏览器是否支持 File System Access API
@@ -58,34 +58,44 @@ function handlePermissionError(error: unknown, operation: string): never {
 }
 
 /**
- * 使用 <input type="file"> 选择图片文件
- * 兼容性更好，适用于所有浏览器
+ * 扫描目录中的图片文件
+ * 支持 jpg, jpeg, png, gif, webp, bmp 格式
  */
-export function selectImageFile(): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.style.display = "none";
+export async function scanDirectoryForImages(
+  dirHandle: FileSystemDirectoryHandle
+): Promise<string[]> {
+  const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+  const imageFiles: string[] = [];
 
-    input.addEventListener("change", () => {
-      const file = input.files?.[0];
-      if (file) {
-        resolve(file);
-      } else {
-        reject(new Error("未选择任何文件"));
+  try {
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === "file") {
+        const ext = entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase();
+        if (imageExtensions.includes(ext)) {
+          imageFiles.push(entry.name);
+        }
       }
-      document.body.removeChild(input);
-    });
+    }
+  } catch (error) {
+    handlePermissionError(error, "扫描目录");
+  }
 
-    input.addEventListener("cancel", () => {
-      reject(new Error("用户取消了文件选择"));
-      document.body.removeChild(input);
-    });
+  return imageFiles.sort((a, b) => a.localeCompare(b));
+}
 
-    document.body.appendChild(input);
-    input.click();
-  });
+/**
+ * 从目录中获取指定图片文件的 File 对象
+ */
+export async function getImageFileFromDirectory(
+  dirHandle: FileSystemDirectoryHandle,
+  fileName: string
+): Promise<File> {
+  try {
+    const fileHandle = await dirHandle.getFileHandle(fileName);
+    return await fileHandle.getFile();
+  } catch (error) {
+    handlePermissionError(error, `获取图片文件 "${fileName}"`);
+  }
 }
 
 /**
@@ -114,78 +124,23 @@ export function readImageAsDataURL(file: File): Promise<string> {
 /**
  * 根据图片文件名查找并读取同名的 JSON 标注文件
  * 例如：image.jpg -> image.json
- * 自动在同目录下查找对应的 JSON 文件，无需手动选择
+ * 在指定目录下查找对应的 JSON 文件
  */
 export async function loadAnnotationFile(
-  imageFile: File
+  dirHandle: FileSystemDirectoryHandle,
+  imageFileName: string
 ): Promise<LabelMeAnnotation | null> {
-  // 获取图片文件名（不含扩展名）
-  const imageName = imageFile.name.replace(/\.[^/.]+$/, "");
+  const imageName = imageFileName.replace(/\.[^/.]+$/, "");
   const jsonFileName = `${imageName}.json`;
 
   try {
-    // 尝试使用 File System Access API 查找同目录下的 JSON 文件
-    if (checkFileSystemAccessSupport()) {
-      showBrowserWarning();
-
-      const dirHandle = await window.showDirectoryPicker();
-
-      try {
-        const fileHandle = await dirHandle.getFileHandle(jsonFileName);
-        const file = await fileHandle.getFile();
-        const content = await file.text();
-        return JSON.parse(content) as LabelMeAnnotation;
-      } catch {
-        return null;
-      }
-    }
-
-    // 降级方案：使用 input 选择 JSON 文件
-    return await loadAnnotationFileFallback(jsonFileName);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("用户取消")) {
-      return null;
-    }
-    handlePermissionError(error, "读取标注文件");
+    const fileHandle = await dirHandle.getFileHandle(jsonFileName);
+    const file = await fileHandle.getFile();
+    const content = await file.text();
+    return JSON.parse(content) as LabelMeAnnotation;
+  } catch {
+    return null;
   }
-}
-
-/**
- * 降级方案：使用 input 选择 JSON 文件
- */
-function loadAnnotationFileFallback(
-  _suggestedName: string
-): Promise<LabelMeAnnotation | null> {
-  return new Promise((resolve, reject) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json,application/json";
-    input.style.display = "none";
-
-    input.addEventListener("change", async () => {
-      const file = input.files?.[0];
-      if (file) {
-        try {
-          const content = await file.text();
-          const annotation = JSON.parse(content) as LabelMeAnnotation;
-          resolve(annotation);
-        } catch (parseError) {
-          reject(new Error("解析标注文件失败：无效的 JSON 格式"));
-        }
-      } else {
-        resolve(null);
-      }
-      document.body.removeChild(input);
-    });
-
-    input.addEventListener("cancel", () => {
-      resolve(null);
-      document.body.removeChild(input);
-    });
-
-    document.body.appendChild(input);
-    input.click();
-  });
 }
 
 /**

@@ -3,15 +3,15 @@ import Toolbar from "./components/Toolbar";
 import Viewport from "./components/Viewport";
 import LabelList from "./components/LabelList";
 import CropModal from "./components/CropModal";
-import { selectDirectory } from "../../utils/fileSystem";
+import { selectDirectory as selectDirectoryFromFS } from "./utils/fileSystem";
 
-export default function ImageLabelerPage() {
+export default function ImageLabeler() {
   const {
     // state
     imagePath, imageUrl, labels, zoom, pan, naturalSize,
     categories, currentCategoryId,
     // actions
-    pickImage, saveLabels, resetView, clearAll,
+    selectDirectory, saveLabels, resetView, clearAll,
     deleteLabel, editLabel,
     // viewport handlers
     handleWheel, handleViewportMouseDown, handleViewportMouseMove,
@@ -26,6 +26,7 @@ export default function ImageLabelerPage() {
     cropConfig, setCropConfig,
     showCropGrid, setShowCropGrid,
     exportCrops,
+    imageList, currentImageIndex, loadImageByIndex,
   } = useImageLabeler();
 
   return (
@@ -42,7 +43,10 @@ export default function ImageLabelerPage() {
         <Toolbar
           imagePath={imagePath}
           zoom={zoom}
-          pickImage={pickImage}
+          imageList={imageList}
+          currentImageIndex={currentImageIndex}
+          onSelectImage={loadImageByIndex}
+          onSelectDirectory={selectDirectory}
           saveLabels={saveLabels}
           categories={categories}
           currentCategoryId={currentCategoryId}
@@ -81,7 +85,7 @@ export default function ImageLabelerPage() {
           }}
           onExport={async (config) => {
             setCropConfig(config);
-            const dirHandle = await selectDirectory();
+            const dirHandle = await selectDirectoryFromFS();
             const result = await exportCrops(config, dirHandle);
             setShowCropGrid(false);
             return result;

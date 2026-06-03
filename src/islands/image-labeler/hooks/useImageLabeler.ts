@@ -1,12 +1,13 @@
 import { createSignal } from "solid-js";
 import type { Label, Vec2, Category, LabelMeAnnotation, CropConfig, CropResult } from "../types";
 import {
-  selectImageFile,
+  selectDirectory,
   readImageAsDataURL,
-  loadAnnotationFile,
+  scanDirectoryForImages,
+  getImageFileFromDirectory,
   saveAnnotationFile,
   writeFileToDirectory,
-} from "../../../utils/fileSystem";
+} from "../../../islands/image-labeler/utils/fileSystem";
 
 export function useImageLabeler() {
   let nextId = 1;
@@ -18,6 +19,9 @@ export function useImageLabeler() {
   const [categories, setCategories] = createSignal<Category[]>([]);
   const [currentCategoryId, setCurrentCategoryId] = createSignal<number | null>(null);
   const [dragId, setDragId] = createSignal<number | null>(null);
+
+  const [imageList, setImageList] = createSignal<string[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = createSignal<number>(-1);
 
   // Zoom & pan
   const [zoom, setZoom] = createSignal(1);
@@ -32,6 +36,9 @@ export function useImageLabeler() {
   const [cropModalOpen, setCropModalOpen] = createSignal(false);
   const [cropConfig, setCropConfig] = createSignal<CropConfig | null>(null);
   const [showCropGrid, setShowCropGrid] = createSignal(false);
+
+  // Directory handle for saving
+  const [dirHandle, setDirHandle] = createSignal<FileSystemDirectoryHandle | null>(null);
 
   // Category management
   function addCategory(name: string) {
@@ -62,36 +69,66 @@ export function useImageLabeler() {
     );
   }
 
-  async function pickImage() {
-    const file = await selectImageFile();
-    const fileName = file.name;
-    setImagePath(fileName);
+  async function handleSelectDirectory() {
+    const dirHandle = await selectDirectory();
+    setDirHandle(dirHandle);
 
-    // Read image as data URL
+    const images = await scanDirectoryForImages(dirHandle);
+    setImageList(images);
+
+    if (images.length > 0) {
+      await loadImageByIndex(0);
+    } else {
+      console.warn("所选目录中没有找到图片文件");
+      setCurrentImageIndex(-1);
+      setImagePath("");
+      setImageUrl("");
+      setLabels([]);
+      setCategories([]);
+      nextCategoryId = 1;
+      setCurrentCategoryId(null);
+    }
+  }
+
+  async function loadImageByIndex(index: number) {
+    const images = imageList();
+    const handle = dirHandle();
+
+    if (index < 0 || index >= images.length || !handle) {
+      console.warn("无效的图片索引:", index);
+      return;
+    }
+
+    const fileName = images[index];
+    setCurrentImageIndex(index);
+    setImagePath(fileName);
+    setLabels([]);
+    nextId = 1;
+
+    const file = await getImageFileFromDirectory(handle, fileName);
     const dataUrl = await readImageAsDataURL(file);
     setImageUrl(dataUrl);
 
-    // Try to load corresponding JSON annotation file
-    const annotation = await loadAnnotationFile(file);
+    const annotation = await loadAnnotationFromDirHandle(handle, fileName);
 
-    // Parse categories
+    let loadedCategories: Category[] = [];
     if (annotation && annotation.categories && annotation.categories.length > 0) {
-      setCategories(annotation.categories);
-      nextCategoryId = Math.max(...annotation.categories.map((c: { id: number }) => c.id)) + 1;
-      setCurrentCategoryId(annotation.categories[0].id);
+      loadedCategories = annotation.categories;
+      setCategories(loadedCategories);
+      nextCategoryId = Math.max(...loadedCategories.map((c: { id: number }) => c.id)) + 1;
+      setCurrentCategoryId(loadedCategories[0].id);
     } else {
       setCategories([]);
       nextCategoryId = 1;
       setCurrentCategoryId(null);
     }
 
-    // Parse shapes → labels
     if (annotation && annotation.shapes && annotation.shapes.length > 0) {
       const loadedLabels: Label[] = annotation.shapes.map((shape: { points: number[][]; label: string }, i: number) => ({
         id: i + 1,
         x: shape.points[0][0],
         y: shape.points[0][1],
-        labelId: categories().find((c) => c.name === shape.label)?.id ?? 0,
+        labelId: loadedCategories.find((c) => c.name === shape.label)?.id ?? 0,
       }));
       setLabels(loadedLabels);
       nextId = loadedLabels.length + 1;
@@ -124,7 +161,16 @@ export function useImageLabeler() {
     };
 
     const suggestedName = imagePath().replace(/\.[^.]+$/, ".json");
-    await saveAnnotationFile(annotation, suggestedName);
+    const currentDirHandle = dirHandle();
+
+    if (currentDirHandle) {
+      const blob = new Blob([JSON.stringify(annotation, null, 2)], {
+        type: "application/json",
+      });
+      await writeFileToDirectory(currentDirHandle, suggestedName, blob);
+    } else {
+      await saveAnnotationFile(annotation, suggestedName);
+    }
 
     const toast = document.getElementById("toast");
     if (toast) {
@@ -166,7 +212,6 @@ export function useImageLabeler() {
 
   function handleViewportMouseDown(e: MouseEvent) {
     if (e.button === 0 || e.button === 1) {
-      // left or middle button pan
       e.preventDefault();
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
@@ -180,7 +225,6 @@ export function useImageLabeler() {
       const dx = e.clientX - panStart().x;
       const dy = e.clientY - panStart().y;
 
-      // 检测是否超过拖动阈值（5px）
       if (!hasDragged()) {
         const totalDx = e.clientX - dragStart().x;
         const totalDy = e.clientY - dragStart().y;
@@ -302,6 +346,21 @@ export function useImageLabeler() {
     setNaturalSize({ x: width, y: height });
   }
 
+  async function loadAnnotationFromDirHandle(
+    handle: FileSystemDirectoryHandle,
+    imageFileName: string
+  ): Promise<LabelMeAnnotation | null> {
+    const jsonFileName = imageFileName.replace(/\.[^/.]+$/, ".json");
+    try {
+      const fileHandle = await handle.getFileHandle(jsonFileName);
+      const file = await fileHandle.getFile();
+      const content = await file.text();
+      return JSON.parse(content) as LabelMeAnnotation;
+    } catch {
+      return null;
+    }
+  }
+
   async function exportCrops(config: CropConfig, dirHandle: FileSystemDirectoryHandle): Promise<CropResult> {
     if (!imagePath()) {
       throw new Error("未选择图片");
@@ -331,20 +390,17 @@ export function useImageLabeler() {
         const cropW = Math.min(config.tileWidth, imgWidth - x);
         if (cropW <= 0) break;
 
-        // Crop image using canvas
         canvas.width = cropW;
         canvas.height = cropH;
         ctx.drawImage(img, x, y, cropW, cropH, 0, 0, cropW, cropH);
 
         const tileName = `${imagePath().replace(/\.[^.]+$/, "")}_crop_r${row}_c${col}`;
 
-        // Get image blob
         const blob = await new Promise<Blob>((resolve) => {
           canvas.toBlob((b) => resolve(b!), "image/png");
         });
         await writeFileToDirectory(dirHandle, `${tileName}.png`, blob);
 
-        // Filter and transform labels
         const tileShapes = [];
         for (const label of labels()) {
           const cat = categories().find((c) => c.id === label.labelId);
@@ -363,7 +419,6 @@ export function useImageLabeler() {
           tilesWithLabels++;
         }
 
-        // Save JSON annotation
         const tileAnnotation: LabelMeAnnotation = {
           version: "5.0",
           flags: {},
@@ -388,7 +443,6 @@ export function useImageLabeler() {
   }
 
   return {
-    // state signals
     imagePath,
     imageUrl,
     labels,
@@ -398,8 +452,10 @@ export function useImageLabeler() {
     dragId,
     categories,
     currentCategoryId,
-    // actions & handlers
-    pickImage,
+    selectDirectory: handleSelectDirectory,
+    loadImageByIndex,
+    imageList,
+    currentImageIndex,
     saveLabels,
     resetView,
     fitToViewport,
@@ -414,12 +470,10 @@ export function useImageLabeler() {
     startDrag,
     handleContextMenu,
     handleImageLoad,
-    // category
     addCategory,
     removeCategory,
     editCategory,
     setCurrentCategoryId,
-    // crop export
     cropModalOpen,
     setCropModalOpen,
     cropConfig,
@@ -427,5 +481,6 @@ export function useImageLabeler() {
     showCropGrid,
     setShowCropGrid,
     exportCrops,
+    dirHandle,
   };
 }
