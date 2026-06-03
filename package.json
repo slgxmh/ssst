@@ -1,11 +1,11 @@
 {
   "name": "ssst",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A web-based image labeling tool (PWA)",
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && cp .netlify/build/sw.js .netlify/build/workbox-*.js dist/ 2>/dev/null || true",
+    "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
     "bump": "node scripts/bump-version.mjs"

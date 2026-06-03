@@ -6,7 +6,7 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
 
 # 静态生成，不需要 Edge Functions
 # Astro 的 output: "static" 会生成纯静态文件
