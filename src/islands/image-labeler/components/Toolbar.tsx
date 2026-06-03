@@ -1,4 +1,4 @@
-import { Show, For } from "solid-js";
+import { Show, For, createSignal } from "solid-js";
 import { Category } from "../types";
 
 interface ToolbarProps {
@@ -18,6 +18,8 @@ interface ToolbarProps {
 }
 
 export default function Toolbar(props: ToolbarProps) {
+  const [dropdownOpen, setDropdownOpen] = createSignal(false);
+
   return (
     <>
       {/* Toast */}
@@ -46,15 +48,36 @@ export default function Toolbar(props: ToolbarProps) {
         <div class="flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-center">
           <Show when={props.imageList().length > 0}>
             <div class="flex items-center gap-2 shrink-0">
-              <select
-                class="select select-sm select-bordered w-48"
-                value={props.currentImageIndex()}
-                onChange={(e) => props.onSelectImage(Number(e.target.value))}
-              >
-                <For each={props.imageList()}>
-                  {(name, index) => <option value={index()}>{name}</option>}
-                </For>
-              </select>
+              <div class="dropdown">
+                <button
+                  class="btn btn-sm btn-bordered w-48 justify-between"
+                  onClick={() => setDropdownOpen(!dropdownOpen())}
+                >
+                  <span class="truncate">
+                    {props.imageList()[props.currentImageIndex()]}
+                  </span>
+                  <span>▼</span>
+                </button>
+                <Show when={dropdownOpen()}>
+                  <ul class="dropdown-content menu menu-sm bg-base-100 rounded-box shadow-lg z-30 mt-1 w-48 max-h-60 overflow-auto border border-base-300">
+                    <For each={props.imageList()}>
+                      {(name, index) => (
+                        <li>
+                          <button
+                            class={index() === props.currentImageIndex() ? "active" : ""}
+                            onClick={() => {
+                              props.onSelectImage(index());
+                              setDropdownOpen(false);
+                            }}
+                          >
+                            {name}
+                          </button>
+                        </li>
+                      )}
+                    </For>
+                  </ul>
+                </Show>
+              </div>
               <span class="text-sm text-base-content/60">
                 {props.currentImageIndex() + 1} / {props.imageList().length}
               </span>

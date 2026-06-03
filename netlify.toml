@@ -26,8 +26,15 @@
   [headers.values]
     Cache-Control = "public, max-age=86400"
 
+# HTML 文件 - 禁止浏览器长期缓存，确保总是获取最新版本
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
 # PWA 相关文件
 [[headers]]
   for = "/manifest.json"
   [headers.values]
     Content-Type = "application/manifest+json"
+    Cache-Control = "public, max-age=0, must-revalidate"
