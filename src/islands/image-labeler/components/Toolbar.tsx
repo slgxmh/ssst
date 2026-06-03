@@ -31,8 +31,9 @@ export default function Toolbar(props: ToolbarProps) {
       </div>
 
       {/* Toolbar */}
-      <div class="navbar bg-base-100 shadow-sm px-4 shrink-0">
-        <div class="navbar-start">
+      <div class="flex items-center justify-between bg-base-100 shadow-sm px-4 py-2 shrink-0 gap-4">
+        {/* Left section */}
+        <div class="flex items-center shrink-0">
           <span class="text-xl font-bold">🔖 图片标注</span>
           <Show when={props.imagePath()}>
             <span class="text-sm font-mono text-base-content/60 ml-4">
@@ -40,18 +41,18 @@ export default function Toolbar(props: ToolbarProps) {
             </span>
           </Show>
         </div>
-        <div class="navbar-center gap-2">
+
+        {/* Center section */}
+        <div class="flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-center">
           <Show when={props.imageList().length > 0}>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 shrink-0">
               <select
                 class="select select-sm select-bordered w-48"
                 value={props.currentImageIndex()}
                 onChange={(e) => props.onSelectImage(Number(e.target.value))}
               >
                 <For each={props.imageList()}>
-                  {(name, index) => (
-                    <option value={index()}>{name}</option>
-                  )}
+                  {(name, index) => <option value={index()}>{name}</option>}
                 </For>
               </select>
               <span class="text-sm text-base-content/60">
@@ -60,30 +61,39 @@ export default function Toolbar(props: ToolbarProps) {
             </div>
           </Show>
           <Show when={props.imagePath()}>
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1 min-w-0 overflow-hidden">
               <Show when={props.categories().length === 0}>
-                <span class="text-xs text-base-content/40 mr-2">点击 + 添加标签</span>
+                <span class="text-xs text-base-content/40 mr-2">
+                  点击 + 添加标签
+                </span>
               </Show>
               <For each={props.categories()}>
                 {(cat) => (
                   <button
-                    class={`btn btn-xs gap-1 ${props.currentCategoryId() === cat.id ? 'btn-primary' : 'btn-ghost'}`}
+                    class={`btn btn-xs gap-1 ${props.currentCategoryId() === cat.id ? "btn-primary" : "btn-ghost"}`}
                     onClick={() => props.setCurrentCategoryId(cat.id)}
-                    onContextMenu={(e) => { e.preventDefault(); props.removeCategory(cat.id); }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      props.removeCategory(cat.id);
+                    }}
                     onDblClick={() => {
-                      const newName = prompt('编辑标签名称:', cat.name);
-                      if (newName?.trim()) props.editCategory(cat.id, newName.trim());
+                      const newName = prompt("编辑标签名称:", cat.name);
+                      if (newName?.trim())
+                        props.editCategory(cat.id, newName.trim());
                     }}
                   >
-                    <span class="w-2 h-2 rounded-full" style={{ 'background-color': cat.color }}></span>
+                    <span
+                      class="w-2 h-2 rounded-full"
+                      style={{ "background-color": cat.color }}
+                    ></span>
                     {cat.name}
                   </button>
                 )}
               </For>
               <button
-                class="btn btn-xs btn-outline btn-primary"
+                class="btn btn-xs btn-outline btn-primary shrink-0"
                 onClick={() => {
-                  const name = prompt('输入新标签名称:');
+                  const name = prompt("输入新标签名称:");
                   if (name?.trim()) props.addCategory(name.trim());
                 }}
               >
@@ -92,13 +102,21 @@ export default function Toolbar(props: ToolbarProps) {
             </div>
           </Show>
         </div>
-        <div class="navbar-end gap-2">
-          <Show when={props.imageList().length === 0} fallback={
-            <button class="btn btn-success btn-sm" onClick={props.saveLabels}>
-              💾 保存 JSON
-            </button>
-          }>
-            <button class="btn btn-primary btn-sm" onClick={props.onSelectDirectory}>
+
+        {/* Right section */}
+        <div class="flex items-center gap-2 shrink-0">
+          <Show
+            when={props.imageList().length === 0}
+            fallback={
+              <button class="btn btn-success btn-sm" onClick={props.saveLabels}>
+                💾 保存 JSON
+              </button>
+            }
+          >
+            <button
+              class="btn btn-primary btn-sm"
+              onClick={props.onSelectDirectory}
+            >
               📂 选择数据文件夹
             </button>
           </Show>
