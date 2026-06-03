@@ -74,8 +74,8 @@ const jsonLd = {
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Service Worker 注册 -->
-    <script is:inline src="/registerSW.js"></script>
+    <!-- Service Worker 注册（仅生产环境） -->
+    {import.meta.env.PROD && <script is:inline src="/registerSW.js"></script>}
   </head>
 
   <body>
