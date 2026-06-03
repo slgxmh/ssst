@@ -4,7 +4,10 @@ import { Category } from "../types";
 interface ToolbarProps {
   imagePath: () => string;
   zoom: () => number;
-  pickImage: () => void;
+  imageList: () => string[];
+  currentImageIndex: () => number;
+  onSelectImage: (index: number) => void;
+  onSelectDirectory: () => void;
   saveLabels: () => void;
   categories: () => Category[];
   currentCategoryId: () => number | null;
@@ -38,6 +41,24 @@ export default function Toolbar(props: ToolbarProps) {
           </Show>
         </div>
         <div class="navbar-center gap-2">
+          <Show when={props.imageList().length > 0}>
+            <div class="flex items-center gap-2">
+              <select
+                class="select select-sm select-bordered w-48"
+                value={props.currentImageIndex()}
+                onChange={(e) => props.onSelectImage(Number(e.target.value))}
+              >
+                <For each={props.imageList()}>
+                  {(name, index) => (
+                    <option value={index()}>{name}</option>
+                  )}
+                </For>
+              </select>
+              <span class="text-sm text-base-content/60">
+                {props.currentImageIndex() + 1} / {props.imageList().length}
+              </span>
+            </div>
+          </Show>
           <Show when={props.imagePath()}>
             <div class="flex items-center gap-1">
               <Show when={props.categories().length === 0}>
@@ -72,12 +93,13 @@ export default function Toolbar(props: ToolbarProps) {
           </Show>
         </div>
         <div class="navbar-end gap-2">
-          <button class="btn btn-primary btn-sm" onClick={props.pickImage}>
-            📂 选择图片
-          </button>
-          <Show when={props.imagePath()}>
+          <Show when={props.imageList().length === 0} fallback={
             <button class="btn btn-success btn-sm" onClick={props.saveLabels}>
               💾 保存 JSON
+            </button>
+          }>
+            <button class="btn btn-primary btn-sm" onClick={props.onSelectDirectory}>
+              📂 选择数据文件夹
             </button>
           </Show>
         </div>

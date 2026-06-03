@@ -1,8 +1,10 @@
 import { createSignal } from "solid-js";
 import type { Label, Vec2, Category, LabelMeAnnotation, CropConfig, CropResult } from "../types";
 import {
-  selectImageFileWithDirectory,
+  selectDirectory,
   readImageAsDataURL,
+  scanDirectoryForImages,
+  getImageFileFromDirectory,
   saveAnnotationFile,
   writeFileToDirectory,
 } from "../../../islands/image-labeler/utils/fileSystem";
@@ -17,6 +19,9 @@ export function useImageLabeler() {
   const [categories, setCategories] = createSignal<Category[]>([]);
   const [currentCategoryId, setCurrentCategoryId] = createSignal<number | null>(null);
   const [dragId, setDragId] = createSignal<number | null>(null);
+
+  const [imageList, setImageList] = createSignal<string[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = createSignal<number>(-1);
 
   // Zoom & pan
   const [zoom, setZoom] = createSignal(1);
@@ -64,18 +69,47 @@ export function useImageLabeler() {
     );
   }
 
-  async function pickImage() {
-    const { file, dirHandle: newDirHandle } = await selectImageFileWithDirectory();
-    const fileName = file.name;
-    setImagePath(fileName);
-    setDirHandle(newDirHandle);
+  async function handleSelectDirectory() {
+    const dirHandle = await selectDirectory();
+    setDirHandle(dirHandle);
 
+    const images = await scanDirectoryForImages(dirHandle);
+    setImageList(images);
+
+    if (images.length > 0) {
+      await loadImageByIndex(0);
+    } else {
+      console.warn("所选目录中没有找到图片文件");
+      setCurrentImageIndex(-1);
+      setImagePath("");
+      setImageUrl("");
+      setLabels([]);
+      setCategories([]);
+      nextCategoryId = 1;
+      setCurrentCategoryId(null);
+    }
+  }
+
+  async function loadImageByIndex(index: number) {
+    const images = imageList();
+    const handle = dirHandle();
+
+    if (index < 0 || index >= images.length || !handle) {
+      console.warn("无效的图片索引:", index);
+      return;
+    }
+
+    const fileName = images[index];
+    setCurrentImageIndex(index);
+    setImagePath(fileName);
+    setLabels([]);
+    nextId = 1;
+
+    const file = await getImageFileFromDirectory(handle, fileName);
     const dataUrl = await readImageAsDataURL(file);
     setImageUrl(dataUrl);
 
-    const annotation = newDirHandle
-      ? await loadAnnotationFromDirHandle(newDirHandle, fileName)
-      : null;
+    const annotation = await loadAnnotationFromDirHandle(handle, fileName);
 
     let loadedCategories: Category[] = [];
     if (annotation && annotation.categories && annotation.categories.length > 0) {
@@ -418,7 +452,10 @@ export function useImageLabeler() {
     dragId,
     categories,
     currentCategoryId,
-    pickImage,
+    selectDirectory: handleSelectDirectory,
+    loadImageByIndex,
+    imageList,
+    currentImageIndex,
     saveLabels,
     resetView,
     fitToViewport,

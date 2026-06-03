@@ -1,12 +1,13 @@
 import { createSignal } from "solid-js";
 import type { Label, Vec2, Category, LabelMeAnnotation, CropConfig, CropResult } from "../types";
 import {
-  selectImageFileWithDirectory,
+  selectDirectory,
   readImageAsDataURL,
-  loadAnnotationFile,
+  scanDirectoryForImages,
+  getImageFileFromDirectory,
   saveAnnotationFile,
   writeFileToDirectory,
-} from "../utils/fileSystem";
+} from "../../../islands/image-labeler/utils/fileSystem";
 
 export function useImageLabeler() {
   let nextId = 1;
@@ -18,6 +19,9 @@ export function useImageLabeler() {
   const [categories, setCategories] = createSignal<Category[]>([]);
   const [currentCategoryId, setCurrentCategoryId] = createSignal<number | null>(null);
   const [dragId, setDragId] = createSignal<number | null>(null);
+
+  const [imageList, setImageList] = createSignal<string[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = createSignal<number>(-1);
 
   // Zoom & pan
   const [zoom, setZoom] = createSignal(1);
@@ -65,23 +69,54 @@ export function useImageLabeler() {
     );
   }
 
-  async function pickImage() {
-    const { file, dirHandle: newDirHandle } = await selectImageFileWithDirectory();
-    const fileName = file.name;
-    setImagePath(fileName);
-    setDirHandle(newDirHandle);
+  async function handleSelectDirectory() {
+    const dirHandle = await selectDirectory();
+    setDirHandle(dirHandle);
 
+    const images = await scanDirectoryForImages(dirHandle);
+    setImageList(images);
+
+    if (images.length > 0) {
+      await loadImageByIndex(0);
+    } else {
+      console.warn("所选目录中没有找到图片文件");
+      setCurrentImageIndex(-1);
+      setImagePath("");
+      setImageUrl("");
+      setLabels([]);
+      setCategories([]);
+      nextCategoryId = 1;
+      setCurrentCategoryId(null);
+    }
+  }
+
+  async function loadImageByIndex(index: number) {
+    const images = imageList();
+    const handle = dirHandle();
+
+    if (index < 0 || index >= images.length || !handle) {
+      console.warn("无效的图片索引:", index);
+      return;
+    }
+
+    const fileName = images[index];
+    setCurrentImageIndex(index);
+    setImagePath(fileName);
+    setLabels([]);
+    nextId = 1;
+
+    const file = await getImageFileFromDirectory(handle, fileName);
     const dataUrl = await readImageAsDataURL(file);
     setImageUrl(dataUrl);
 
-    const annotation = newDirHandle
-      ? await loadAnnotationFromDirHandle(newDirHandle, fileName)
-      : await loadAnnotationFile(file);
+    const annotation = await loadAnnotationFromDirHandle(handle, fileName);
 
+    let loadedCategories: Category[] = [];
     if (annotation && annotation.categories && annotation.categories.length > 0) {
-      setCategories(annotation.categories);
-      nextCategoryId = Math.max(...annotation.categories.map((c: { id: number }) => c.id)) + 1;
-      setCurrentCategoryId(annotation.categories[0].id);
+      loadedCategories = annotation.categories;
+      setCategories(loadedCategories);
+      nextCategoryId = Math.max(...loadedCategories.map((c: { id: number }) => c.id)) + 1;
+      setCurrentCategoryId(loadedCategories[0].id);
     } else {
       setCategories([]);
       nextCategoryId = 1;
@@ -93,7 +128,7 @@ export function useImageLabeler() {
         id: i + 1,
         x: shape.points[0][0],
         y: shape.points[0][1],
-        labelId: categories().find((c) => c.name === shape.label)?.id ?? 0,
+        labelId: loadedCategories.find((c) => c.name === shape.label)?.id ?? 0,
       }));
       setLabels(loadedLabels);
       nextId = loadedLabels.length + 1;
@@ -417,7 +452,10 @@ export function useImageLabeler() {
     dragId,
     categories,
     currentCategoryId,
-    pickImage,
+    selectDirectory: handleSelectDirectory,
+    loadImageByIndex,
+    imageList,
+    currentImageIndex,
     saveLabels,
     resetView,
     fitToViewport,
