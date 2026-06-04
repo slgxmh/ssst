@@ -1,17 +1,28 @@
 # SSST
 
-一个基于 **Astro + SolidJS** 构建的**个人工具箱**渐进式 Web 应用（PWA）。采用模块化架构，目前集成了图像标注工具，未来将持续扩展更多实用功能模块。
+个人工具箱，采用 monorepo 架构，包含 Web PWA 应用与 Rust CLI 调试工具。
+
+- **apps/web**: 基于 **Astro + SolidJS** 构建的渐进式 Web 应用（PWA），目前集成图像标注工具。
+- **apps/ssst-cli**: 基于 **Rust + btleplug + ratatui** 的 TUI CLI，用于 BLE 蓝牙调试（Serial 支持规划中）。
 
 ## 功能特性
 
+### Web PWA
 - 🏠 **首页导航** — 清晰的功能入口，点击卡片进入对应工具
 - 🖼️ **图像标注** — 支持 LabelMe 格式的点标注、类别管理
 - ✂️ **图片裁剪** — 支持网格分割导出，可自定义瓦片尺寸与重叠区域
 - 🔄 **离线可用** — PWA 支持，可安装到桌面，离线使用
 - 📱 **响应式设计** — 适配桌面和移动设备
 
+### ssst-cli（BLE 调试）
+- 🔍 **设备扫描** — 实时发现附近 BLE 设备，显示信号强度
+- 🔌 **一键连接** — Enter 连接选中设备，自动发现 GATT 服务与特征
+- 📊 **三面板 TUI** — 设备列表 / 服务树 / 特征属性，支持键盘导航
+- 📡 **GATT 操作** — 支持读、写、Notify 订阅（read/write/notify 已预留接口）
+
 ## 技术栈
 
+### Web
 - **前端框架**: [Astro](https://astro.build/) + [SolidJS](https://www.solidjs.com/) + [TypeScript](https://www.typescriptlang.org/)
 - **构建工具**: [Vite](https://vitejs.dev/)
 - **UI 样式**: [Tailwind CSS](https://tailwindcss.com/) + [DaisyUI](https://daisyui.com/)
@@ -19,55 +30,91 @@
 - **PWA**: [@vite-pwa/astro](https://vite-pwa-org.netlify.app/)
 - **部署**: [Netlify](https://www.netlify.com/)
 
+### CLI
+- **语言**: [Rust](https://www.rust-lang.org/)
+- **BLE**: [btleplug](https://github.com/deviceplug/btleplug)
+- **TUI**: [ratatui](https://github.com/ratatui/ratatui) + [crossterm](https://github.com/crossterm-rs/crossterm)
+- **异步运行时**: [tokio](https://tokio.rs/)
+- **CLI 解析**: [clap](https://github.com/clap-rs/clap)
+
 ## 开发环境
 
-- [Node.js](https://nodejs.org/) 20+ 或 [bun](https://bun.sh/)
+- **Web**: [Node.js](https://nodejs.org/) 20+ 或 [bun](https://bun.sh/)
+- **CLI**: [Rust](https://www.rust-lang.org/tools/install) 1.78+
 
 ## 快速开始
 
+### 安装依赖
+
 ```bash
-# 安装依赖
+# Web 依赖（Bun workspace）
 bun install
 
+# CLI 依赖（Rust）
+cd apps/ssst-cli && cargo build
+```
+
+### Web 开发
+
+```bash
 # 启动开发服务器
-bun run dev
+bun run dev:web
 
 # 构建生产版本
-bun run build
-
-# 预览生产构建
-bun run preview
+bun run build:web
 ```
+
+### CLI 使用
+
+```bash
+cd apps/ssst-cli
+
+# 扫描附近 BLE 设备
+cargo run -- scan --duration 10
+
+# 启动交互式 TUI
+cargo run -- interactive
+```
+
+**TUI 快捷键：**
+
+| 按键 | 功能 |
+|------|------|
+| `↑` / `↓` | 导航 |
+| `Enter` | 连接设备 / 进入服务 / 选中特征 |
+| `d` | 断开连接 |
+| `q` / `Esc` | 返回上一级 / 退出 |
 
 ## 项目结构
 
 ```
-├── src/
-│   ├── components/         # 可复用组件
-│   │   └── HomePage.tsx    # 首页组件
-│   ├── islands/            # 交互式岛屿组件
-│   │   └── image-labeler/  # 图像标注模块
-│   │       ├── components/ # 子组件
-│   │       ├── hooks/      # 状态管理
-│   │       ├── utils/      # 工具函数
-│   │       └── ImageLabeler.tsx
-│   ├── layouts/            # 页面布局
-│   │   └── Layout.astro    # 全局布局
-│   ├── pages/              # 页面路由
-│   │   ├── index.astro     # 首页
-│   │   ├── labeler.astro   # 图像标注工具
-│   │   └── docs.astro      # 文档中心
-│   └── styles/
-│       └── global.css      # 全局样式
-├── public/                 # 静态资源
-│   ├── manifest.json       # PWA 清单
-│   └── icons/              # 应用图标
-├── astro.config.mjs        # Astro 配置
-├── netlify.toml            # Netlify 部署配置
-└── .github/workflows/      # CI/CD 自动发布
+├── apps/
+│   ├── web/                  # Astro PWA 应用
+│   │   ├── src/
+│   │   │   ├── components/   # 可复用组件
+│   │   │   ├── islands/      # 交互式岛屿组件
+│   │   │   │   └── image-labeler/
+│   │   │   ├── layouts/      # 页面布局
+│   │   │   ├── pages/        # 页面路由
+│   │   │   └── styles/
+│   │   ├── public/           # 静态资源
+│   │   ├── astro.config.mjs
+│   │   └── package.json
+│   └── ssst-cli/             # Rust CLI 工具
+│       ├── src/
+│       │   ├── main.rs       # CLI 入口
+│       │   ├── app.rs        # TUI 状态
+│       │   ├── scanner.rs    # BLE 扫描
+│       │   ├── gatt.rs       # GATT 操作
+│       │   ├── ui.rs         # ratatui 布局
+│       │   └── event.rs      # 事件处理
+│       └── Cargo.toml
+├── Cargo.toml                # Rust workspace
+├── package.json              # Bun workspace
+└── netlify.toml              # 部署配置
 ```
 
-## 页面路由
+## 页面路由（Web）
 
 | 路由 | 页面 | 说明 |
 |------|------|------|

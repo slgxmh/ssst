@@ -2,6 +2,7 @@
 # 静态站点部署
 
 [build]
+  base = "apps/web"
   command = "bun run build"
   publish = "dist"
 
