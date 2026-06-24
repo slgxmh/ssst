@@ -1,13 +1,13 @@
 {
   "name": "ssst",
   "version": "0.4.1",
-  "description": "A web-based image labeling tool (PWA) and BLE debugging CLI",
+  "description": "A Tauri v2 desktop toolbox with image labeling and BLE debugging",
   "private": true,
   "workspaces": ["apps/*"],
   "license": "MIT",
   "scripts": {
-    "dev:web": "bun run --filter web dev",
-    "build:web": "bun run --filter web build",
-    "build:ssst-cli": "cd apps/ssst-cli && cargo build --release"
+    "dev": "bun run --filter desktop dev",
+    "build": "bun run --filter desktop build",
+    "build:desktop": "bun run --filter desktop build:desktop"
   }
 }

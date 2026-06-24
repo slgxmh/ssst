@@ -1,0 +1,32 @@
+[package]
+name = "ssst-desktop"
+version = "0.4.1"
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "ssst_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ssst-desktop"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+btleplug = "0.11"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures = "0.3"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+uuid = "1"
+base64 = "0.22"
+hex = "0.4"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

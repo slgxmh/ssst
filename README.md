@@ -1,126 +1,92 @@
 # SSST
 
-个人工具箱，采用 monorepo 架构，包含 Web PWA 应用与 Rust CLI 调试工具。
+个人工具箱，采用 Tauri v2 构建的桌面应用，集成图像标注与 BLE 调试能力。
 
-- **apps/web**: 基于 **Astro + SolidJS** 构建的渐进式 Web 应用（PWA），目前集成图像标注工具。
-- **apps/ssst-cli**: 基于 **Rust + btleplug + ratatui** 的 TUI CLI，用于 BLE 蓝牙调试（Serial 支持规划中）。
+- **apps/desktop**: 基于 **Vite + SolidJS + Tauri** 的桌面应用，包含图像标注工具和 BLE 调试面板。
 
 ## 功能特性
 
-### Web PWA
-- 🏠 **首页导航** — 清晰的功能入口，点击卡片进入对应工具
+### 图像标注
 - 🖼️ **图像标注** — 支持 LabelMe 格式的点标注、类别管理
 - ✂️ **图片裁剪** — 支持网格分割导出，可自定义瓦片尺寸与重叠区域
-- 🔄 **离线可用** — PWA 支持，可安装到桌面，离线使用
-- 📱 **响应式设计** — 适配桌面和移动设备
+- 📁 **目录管理** — 选择本地图片目录，自动加载同目录 JSON 标注并保存
+- 🎨 **类别管理** — 自定义类别名称与颜色，自动分配编号
 
-### ssst-cli（BLE 调试）
+### BLE 调试
 - 🔍 **设备扫描** — 实时发现附近 BLE 设备，显示信号强度
-- 🔌 **一键连接** — Enter 连接选中设备，自动发现 GATT 服务与特征
-- 📊 **三面板 TUI** — 设备列表 / 服务树 / 特征属性，支持键盘导航
-- 📡 **GATT 操作** — 支持读、写、Notify 订阅（read/write/notify 已预留接口）
+- 🔌 **一键连接** — 连接选中设备并发现 GATT 服务与特征
+- 📡 **GATT 操作** — 支持读、写、Notify 订阅
 
 ## 技术栈
 
-### Web
-- **前端框架**: [Astro](https://astro.build/) + [SolidJS](https://www.solidjs.com/) + [TypeScript](https://www.typescriptlang.org/)
+- **前端框架**: [SolidJS](https://www.solidjs.com/) + [TypeScript](https://www.typescriptlang.org/)
 - **构建工具**: [Vite](https://vitejs.dev/)
+- **桌面壳**: [Tauri v2](https://tauri.app/)
 - **UI 样式**: [Tailwind CSS](https://tailwindcss.com/) + [DaisyUI](https://daisyui.com/)
 - **图形绘制**: [Konva](https://konvajs.org/)
-- **PWA**: [@vite-pwa/astro](https://vite-pwa-org.netlify.app/)
-- **部署**: [Netlify](https://www.netlify.com/)
-
-### CLI
-- **语言**: [Rust](https://www.rust-lang.org/)
 - **BLE**: [btleplug](https://github.com/deviceplug/btleplug)
-- **TUI**: [ratatui](https://github.com/ratatui/ratatui) + [crossterm](https://github.com/crossterm-rs/crossterm)
 - **异步运行时**: [tokio](https://tokio.rs/)
-- **CLI 解析**: [clap](https://github.com/clap-rs/clap)
 
 ## 开发环境
 
-- **Web**: [Node.js](https://nodejs.org/) 20+ 或 [bun](https://bun.sh/)
-- **CLI**: [Rust](https://www.rust-lang.org/tools/install) 1.78+
+- [Node.js](https://nodejs.org/) 20+ 或 [bun](https://bun.sh/)
+- [Rust](https://www.rust-lang.org/tools/install) 1.78+
+- macOS / Windows / Linux 桌面平台
 
 ## 快速开始
 
 ### 安装依赖
 
 ```bash
-# Web 依赖（Bun workspace）
 bun install
-
-# CLI 依赖（Rust）
-cd apps/ssst-cli && cargo build
 ```
 
-### Web 开发
+### 开发模式
 
 ```bash
-# 启动开发服务器
-bun run dev:web
-
-# 构建生产版本
-bun run build:web
+bun run dev
 ```
 
-### CLI 使用
+### 构建前端
 
 ```bash
-cd apps/ssst-cli
-
-# 扫描附近 BLE 设备
-cargo run -- scan --duration 10
-
-# 启动交互式 TUI
-cargo run -- interactive
+bun run build
 ```
 
-**TUI 快捷键：**
+### 构建桌面应用
 
-| 按键 | 功能 |
-|------|------|
-| `↑` / `↓` | 导航 |
-| `Enter` | 连接设备 / 进入服务 / 选中特征 |
-| `d` | 断开连接 |
-| `q` / `Esc` | 返回上一级 / 退出 |
+```bash
+bun run build:desktop
+```
 
 ## 项目结构
 
 ```
 ├── apps/
-│   ├── web/                  # Astro PWA 应用
-│   │   ├── src/
-│   │   │   ├── components/   # 可复用组件
-│   │   │   ├── islands/      # 交互式岛屿组件
-│   │   │   │   └── image-labeler/
-│   │   │   ├── layouts/      # 页面布局
-│   │   │   ├── pages/        # 页面路由
-│   │   │   └── styles/
-│   │   ├── public/           # 静态资源
-│   │   ├── astro.config.mjs
-│   │   └── package.json
-│   └── ssst-cli/             # Rust CLI 工具
+│   └── desktop/              # Tauri 桌面应用
 │       ├── src/
-│       │   ├── main.rs       # CLI 入口
-│       │   ├── app.rs        # TUI 状态
-│       │   ├── scanner.rs    # BLE 扫描
-│       │   ├── gatt.rs       # GATT 操作
-│       │   ├── ui.rs         # ratatui 布局
-│       │   └── event.rs      # 事件处理
-│       └── Cargo.toml
+│       │   ├── components/   # 页面级组件
+│       │   ├── features/     # 功能模块
+│       │   │   └── image-labeler/
+│       │   ├── services/     # Tauri 调用服务
+│       │   ├── App.tsx       # 顶层标签页路由
+│       │   ├── index.tsx     # 入口
+│       │   └── styles/
+│       ├── public/           # 静态资源
+│       ├── src-tauri/        # Rust 后端
+│       │   ├── src/
+│       │   │   ├── ble/      # BLE 扫描与 GATT 操作
+│       │   │   ├── lib.rs
+│       │   │   └── main.rs
+│       │   ├── icons/        # 应用图标
+│       │   └── tauri.conf.json
+│       ├── package.json
+│       ├── vite.config.ts
+│       └── tsconfig.json
 ├── Cargo.toml                # Rust workspace
 ├── package.json              # Bun workspace
-└── netlify.toml              # 部署配置
+└── README.md
 ```
-
-## 页面路由（Web）
-
-| 路由 | 页面 | 说明 |
-|------|------|------|
-| `/` | 首页 | 功能导航入口，展示所有可用工具 |
-| `/labeler` | 图像标注 | 图片标注工具主页面 |
-| `/docs` | 文档中心 | 使用指南与帮助文档 |
 
 ## 已有模块
 
@@ -142,7 +108,7 @@ cargo run -- interactive
 - 设置重叠像素（默认 128px），避免标注被切分
 - 实时预览分割网格
 - 自动筛选瓦片内标注，转换为相对坐标
-- 导出为 ZIP 压缩包
+- 导出为独立 PNG 与 JSON 文件
 
 **输出格式：**
 
@@ -153,9 +119,9 @@ cargo run -- interactive
   "shapes": [
     {
       "label": "cat",
-      "points": [[10, 10], [100, 10], [100, 100], [10, 100]],
+      "points": [[10, 10]],
       "group_id": null,
-      "shape_type": "polygon",
+      "shape_type": "point",
       "flags": {}
     }
   ],
@@ -166,8 +132,17 @@ cargo run -- interactive
 }
 ```
 
-## 浏览器支持
+### 🔍 BLE 调试
 
-- Chrome / Edge（推荐，完整支持 File System Access API）
-- Firefox（基础功能支持）
-- Safari（基础功能支持）
+基于 btleplug 的 BLE 调试面板，提供设备扫描、连接、服务发现、特征读写与 Notify 订阅。
+
+**注意事项：**
+
+- macOS 上需要授予应用蓝牙权限
+- 发布版本需要签名/公证才能正常访问 Bluetooth
+
+## 平台支持
+
+- macOS（Apple Silicon / Intel）
+- Windows
+- Linux
